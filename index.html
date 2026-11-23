@@ -721,7 +721,7 @@ function vGestion(){const adm=can('usuarios'),T=[['cuenta','Mi cuenta']];
 /* ============ Bot de reservas ============ */
 function haceTxt(iso){const d=parseISO(iso);if(!d)return '—';const m=Math.round((Date.now()-d)/60000);if(m<1)return 'hace instantes';if(m<60)return 'hace '+m+' min';const h=Math.round(m/60);if(h<48)return 'hace '+h+' h';return 'hace '+Math.round(h/24)+' días'}
 function parseISO(s){if(!s)return null;const d=new Date(s);return isNaN(d)?null:d}
-function botEnLinea(){const b=S.bot;const d=b&&parseISO(b.ultimoContacto);return !!d&&(Date.now()-d)<12*60000}
+function botEnLinea(){const b=S.bot;const d=b&&parseISO(b.ultimoContacto);return !!d&&(Date.now()-d)<7*60000}
 function botChip(){if(!S.fb||!can('validar'))return '';const b=S.bot;if(!b)return '';const on=botEnLinea();
   return `<button class="btn s" data-act="gTabGo" data-t="bot" title="Bot de reservas" style="border-color:${on?'#9fd8b9':'#eea79d'};background:${on?'#eaf7f0':'#fde6e3'}">🤖 ${on?(b.fase==='ejecutando'?'Cargando en SAP…':b.fase==='trabajando'?'Trabajando…':'Bot en línea'):'Bot desconectado'}</button>`}
 function gBot(){const b=S.bot;
@@ -1199,7 +1199,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-23 15:10';
+const BUILD='2026-11-23 16:25';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}

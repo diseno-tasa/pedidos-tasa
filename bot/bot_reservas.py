@@ -620,7 +620,16 @@ class Bot:
                 if os.path.normcase(os.path.dirname(os.path.abspath(exe))) != os.path.normcase(os.path.abspath(sdir)):
                     cmd += ['--carpeta', sdir]
                 self.st.setdefault('intentos', {})[sdir] = now_iso()
-                r = subprocess.run(cmd, cwd=sdir, timeout=self.c.exe_timeout, stdin=subprocess.DEVNULL, **kw)
+                import threading
+                fin_hb = threading.Event()
+                def _latido():  # mantiene "en línea" en la app mientras el Reservatron trabaja
+                    while not fin_hb.wait(120):
+                        self.estado_app('ejecutando', f'Cargando en SAP: {os.path.basename(os.path.dirname(sdir))} / {os.path.basename(sdir)}')
+                threading.Thread(target=_latido, daemon=True).start()
+                try:
+                    r = subprocess.run(cmd, cwd=sdir, timeout=self.c.exe_timeout, stdin=subprocess.DEVNULL, **kw)
+                finally:
+                    fin_hb.set()
                 quedan = [p for p in pend if os.path.exists(p)]
                 resumen = self.resumen_reservatron(sdir)
                 proy = os.path.basename(os.path.dirname(sdir))
