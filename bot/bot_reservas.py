@@ -265,8 +265,8 @@ DEF_DISENO = ['aidrogo@tasa.com.pe', 'onavarro@tasa.com.pe', 'hcuellar@tasa.com.
 CARGO_ALERTA = 'Encargado de diseño'
 XL_HEAD = ['Código', 'Texto breve de material', 'Un. medida de entrada', 'Cantidad', 'Observaciones', 'Reserva', 'Posición', 'Estado',
            'Proyecto', 'Sistema', 'Grafo', 'Pos.', 'Empresa', 'Correo 1', 'Correo 2', 'Correo 3', 'Consideraciones', 'Fecha solicitud',
-           'Fecha de carga', 'Nombre de actividad']
-XL_WCH = [10, 36, 8, 9, 14, 11, 8, 8, 16, 14, 10, 5, 12, 26, 28, 28, 40, 19, 11, 34]
+           'Fecha de carga', 'Nombre de actividad', 'Última Pos.']
+XL_WCH = [10, 36, 8, 9, 14, 11, 8, 8, 16, 14, 10, 5, 12, 26, 28, 28, 40, 19, 11, 34, 9]
 
 def tiene_res(it): return bool(it.get('reserva')) or bool(re.match(r'^reserv', str(it.get('estado') or ''), re.I))
 def is_bloq(it): return it.get('estado') in ('Bloqueado', 'Desbloqueo solicitado', 'Desbloqueado') and not it.get('reserva')
@@ -304,6 +304,20 @@ class Datos:
     def emb_by(self, nombre):
         n = norm(nombre)
         return next((e for e in self.emb if norm(e.get('nombre')) == n), None)
+
+    def ultima_pos(self, h):
+        """Última Pos. del grafo según el listado de actividades (como ultimaPos() de la app)."""
+        e = self.emb_by(h.get('proyecto'))
+        if not e: return None
+        g = re.sub(r'\D', '', str(h.get('grafo') or ''))
+        sis = e.get('sistemas') or []
+        s = next((x for x in sis if g and re.sub(r'\D', '', str(x.get('grafo') or '')) == g), None) or \
+            next((x for x in sis if norm(x.get('nombre')) == norm(h.get('sistema'))), None)
+        ps = []
+        for a in (s or {}).get('actividades') or []:
+            try: ps.append(int(str(a.get('pos')).strip()))
+            except (TypeError, ValueError): pass
+        return max(ps) if ps else None
 
     def cerrada(self, s):
         e = self.emb_by((s.get('header') or {}).get('proyecto'))
@@ -344,7 +358,8 @@ def construir_excel(s, D, tz, destino):
                    as_num(it.get('reserva')), as_num(it.get('posicion')), None if est in EST_SAP else est,
                    h.get('proyecto'), h.get('sistema'), as_num(h.get('grafo')), as_num(h.get('pos')),
                    e.get('nombre') or h.get('empresaTxt') or '', ';'.join(c1), ';'.join(c2), ';'.join(c3),
-                   h.get('consideraciones') or '', fsol, s.get('fechaCarga') or dmy(datetime.now(tz)), h.get('nombreActividad') or ''])
+                   h.get('consideraciones') or '', fsol, s.get('fechaCarga') or dmy(datetime.now(tz)), h.get('nombreActividad') or '',
+                   D.ultima_pos(h)])
     for r in range(2, ws.max_row + 1):
         ws.cell(r, 18).number_format = 'yyyy-mm-dd hh:mm:ss'
     for i, w in enumerate(XL_WCH, 1):
