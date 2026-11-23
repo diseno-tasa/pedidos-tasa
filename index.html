@@ -79,6 +79,8 @@ td input,td select{padding:5px 7px}
 .modal.w{max-width:900px}
 .modal h2{font-size:17px;margin-bottom:14px}
 .mfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.chip.bsu{background:#dff3ef;color:#0b5345;font-weight:700}
+.bsubox{background:#e9f7f3;border:1px solid #9fd8c8;border-radius:10px;padding:10px 12px;color:#0b4535}
 #tour{position:fixed;inset:0;z-index:9000}
 #tour .tblock{position:fixed;inset:0}
 #tour .tspot{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(8,22,45,.62);outline:3px solid #f5b400;transition:all .25s;pointer-events:none}
@@ -567,7 +569,7 @@ function revisar(s){const I=[],h=s.header||{};const pre=['Borrador','Observada']
   (s.items||[]).forEach((it,i)=>{const tag=`Ítem ${i+1} (${it.codigo||'REF'} ${String(it.desc||'').slice(0,28)})`;
     if(!it.codigo){I.push({n:pre?'aviso':'error',m:`${tag}: material referencial sin código SAP${pre?' (el planificador le asignará el código)':''}.`,fix:can('editar_mat')?{k:'asignarRef',i,l:'Asignar código'}:null});}
     const m=matBy(it.codigo);
-    if(it.codigo&&!m)I.push({n:'aviso',m:`${tag}: el código no está en el catálogo.`,fix:can('editar_mat')?{k:'addMat',i,l:'Agregar al catálogo'}:null});
+    if(it.codigo&&!m&&!it.bsu)I.push({n:'aviso',m:`${tag}: el código no está en el catálogo.`,fix:can('editar_mat')?{k:'addMat',i,l:'Agregar al catálogo'}:null});
     if(m&&m.um&&it.um&&m.um!==it.um)I.push({n:'aviso',m:`${tag}: UM "${it.um}" distinta al catálogo (${m.um}).`,fix:{k:'setUm',i,v:m.um,l:'Usar '+m.um}});
     const q=num(it.cantidad);
     if(!(q>0))I.push({n:'error',m:`${tag}: cantidad vacía o no válida.`});
@@ -619,15 +621,15 @@ function vDetalle(){const s=S.draft;if(!s)return '<div class="empty">Seleccione 
    ${ed?`<div style="position:relative;margin-bottom:12px"><input id="msearch" data-live="1" placeholder="Buscar material: código, texto o comodines (ej. pl*12*, tub* 1/2*)…" autocomplete="off"><div id="mresults"></div></div>`:''}
    ${(s.items||[]).length?`<div class="scroll"><table class="rs"><thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>UM</th><th>Cantidad</th><th>Observaciones</th><th>Reserva</th><th>Posición</th><th>Estado SAP</th><th></th></tr></thead><tbody>
    ${s.items.map((it,i)=>{const m=matBy(it.codigo),ref=!!it.refId&&!it.codigo;return `<tr><td data-l="#">${i+1}</td>
-    <td data-l="Código" class="mono">${ref?'<span class="chip ref">REFERENCIAL</span>':esc(it.codigo)}</td>
+    <td data-l="Código" class="mono">${ref?'<span class="chip ref">REFERENCIAL</span>':esc(it.codigo)}${it.bsu?`<div><span class="chip bsu" title="Cambiado a BSU el ${esc(fdt(it.bsu.en))}${it.bsu.nota?' · '+esc(it.bsu.nota):''}">♻ BSU</span></div>`:''}</td>
     <td data-l="Descripción">${esc(it.desc)}${it.fotoId?` <button class="btn s" data-act="verFoto" data-id="${esc(it.fotoId)}">📷</button>`:''}${it.espec?`<div class="small muted">${esc(it.espec)}</div>`:''}</td>
     <td data-l="UM">${ed&&!m&&it.codigo&&can('validar')?`<select data-b="draft.items.${i}.um">${umOpts(it.um)}</select>`:`<b>${esc(it.um)}</b>`}</td>
     <td data-l="Cantidad"><div class="row" style="flex-wrap:nowrap">${ed?`<input class="mono" style="width:90px" data-b="draft.items.${i}.cantidad" value="${esc(it.cantidad)}" inputmode="decimal">`:`<b class="mono">${esc(it.cantidad)}</b>`}${ed&&m&&m.calc?`<button class="btn s" data-act="calcItem" data-i="${i}" title="Calcular por medidas">📐</button>`:''}</div></td>
     <td data-l="Observaciones">${ed?`<input data-b="draft.items.${i}.obs" value="${esc(it.obs)}">`:esc(it.obs)}</td>
     <td data-l="Reserva">${reservaEd?`<input class="mono" style="width:100px" data-b="draft.items.${i}.reserva" value="${esc(it.reserva)}">`:`<span class="mono">${esc(it.reserva||'—')}</span>`}</td>
-    <td data-l="Posición">${reservaEd?`<input class="mono" style="width:60px" data-b="draft.items.${i}.posicion" value="${esc(it.posicion)}">`:`<span class="mono">${esc(it.posicion||'—')}</span>`}</td>
+    <td data-l="Posición">${reservaEd?`<input class="mono" style="width:60px" data-b="draft.items.${i}.posicion" value="${esc(it.posicion)}">`:`<span class="mono">${esc(it.posicion||'—')}</span>`}${it.bsu&&it.bsu.anterior?`<div class="small muted" style="white-space:nowrap">antes: <s class="mono">${esc(it.bsu.anterior.reserva||'')}/${esc(it.bsu.anterior.posicion||'')}</s></div>`:''}</td>
     <td data-l="Estado SAP">${reservaEd&&!['Borrador','Observada'].includes(s.estado)?`<select data-ch="estSap" data-i="${i}" style="min-width:120px">${EST_SAP.map(x=>`<option value="${x}" ${(it.estado||'')===x?'selected':''}>${labSap(x)||'—'}</option>`).join('')}</select>${isBloq(it)&&it.bloqueo&&it.bloqueo.desde?`<div class="small muted">${diasDesde(it.bloqueo.desde)} día(s)</div>`:''}`:(chipSap(it.estado)||'<span class="muted">—</span>')}</td>
-    <td>${ed?`<button class="btn s d" data-act="delItem" data-i="${i}">✕</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Agregue materiales con el buscador. Si no lo encuentra, regístrelo como referencial.</div>'}
+    <td>${ed?`<button class="btn s d" data-act="delItem" data-i="${i}">✕</button>`:''}${reservaEd&&it.reserva&&!S.isNew?`<button class="btn s" data-act="bsuModal" data-i="${i}" title="Almacén lo entrega como BSU: registrar el nuevo código / posición y avisar a la contrata" style="white-space:nowrap">♻ BSU</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Agregue materiales con el buscador. Si no lo encuentra, regístrelo como referencial.</div>'}
    ${ed?'<div class="row" id="tour-add" style="margin-top:10px"><button class="btn" data-act="refModal">+ No encuentro el material (referencial)</button><button class="btn" data-act="impLista">⬆ Importar lista (Excel)</button></div>':''}</div>
   </div><div>
   <div class="card" id="rev-card">${revHTML(s,ed)}</div>
@@ -901,6 +903,8 @@ function vBloqueos(){const ed=can('reserva')||can('validar');const f=S.bqF||'';l
    ${R.length?`<div class="scroll"><table class="rs"><thead><tr><th>Material</th><th>Embarcación / Pos.</th><th>Estado</th><th></th></tr></thead><tbody>${R.map(({s,it})=>`<tr><td data-l="Material">${esc(it.desc)}<div class="small muted">${esc(it.cantidad)} ${esc(it.um)}</div></td><td data-l="Embarcación">${esc(s.header.proyecto||'—')} · Pos ${esc(s.header.pos||'—')}</td>
     <td data-l="Estado">${it.codigo?`<span class="chip e-Validada">Código asignado: <span class="mono">${esc(it.codigo)}</span></span> <span class="small muted">· esperando reserva</span>`:'<span class="chip ref">Pendiente de código</span>'}</td>
     <td><div class="row" style="flex-wrap:nowrap">${ed&&!it.codigo?`<button class="btn s p" data-act="asignarRefMat" data-id="${esc(it.refId)}">Asignar código</button>`:''}<button class="btn s" data-act="open" data-id="${esc(s.id)}">Abrir</button></div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No hay materiales sin código pendientes.</div>'}</div>
+  ${(()=>{const B=bsuCambios().slice(0,30);return B.length?`<div class="card"><h2>♻ Atendidos como BSU (${B.length})</h2><p class="small muted" style="margin-top:-6px">${ed?'Materiales cambiados a bien de segundo uso: la reserva original se eliminó en SAP y se cargó una nueva posición.':'Almacén atenderá estos materiales como <b>BSU</b> (bien de segundo uso). La reserva anterior ya no es válida: use la <b>nueva reserva / posición</b>.'}</p>
+   <div class="scroll"><table class="rs"><thead><tr><th>Fecha</th><th>Antes (eliminada)</th><th>Ahora · BSU</th><th>Reserva</th><th>Posición</th><th>Embarcación / Pos.</th><th></th></tr></thead><tbody>${B.map(({s,it})=>{const a=it.bsu.anterior||{};return `<tr><td data-l="Fecha">${esc(fdt(it.bsu.en))}</td><td data-l="Antes"><s class="mono muted">${esc(a.codigo||'')} · ${esc(a.reserva||'')}/${esc(a.posicion||'')}</s></td><td data-l="Ahora"><span class="mono"><b>${esc(it.codigo)}</b></span> ${esc(it.desc)}<div class="small muted">${esc(it.cantidad)} ${esc(it.um)}${it.bsu.nota?' · '+esc(it.bsu.nota):''}</div></td><td data-l="Reserva" class="mono"><b>${esc(it.reserva)}</b></td><td data-l="Posición" class="mono"><b>${esc(it.posicion)}</b></td><td data-l="Embarcación">${esc(s.header.proyecto||'—')} · Pos ${esc(s.header.pos||'—')}</td><td><button class="btn s" data-act="open" data-id="${esc(s.id)}">Abrir</button></td></tr>`}).join('')}</tbody></table></div></div>`:''})()}
   <div class="card"><h2>🎉 Liberados con reserva</h2>${LB.length?`<div class="scroll"><table class="rs"><thead><tr><th>Fecha</th><th>Código</th><th>Descripción</th><th>Embarcación / Pos.</th><th>Reserva</th><th>Posición</th><th></th></tr></thead><tbody>${LB.map(({s,it})=>`<tr><td data-l="Fecha">${esc(fdt(it.liberadoEn))}</td><td data-l="Código" class="mono">${esc(it.codigo)}</td><td data-l="Descripción">${esc(it.desc)}</td><td data-l="Embarcación">${esc(s.header.proyecto||'—')} · Pos ${esc(s.header.pos||'—')}</td><td data-l="Reserva" class="mono"><b>${esc(it.reserva)}</b></td><td data-l="Posición" class="mono"><b>${esc(it.posicion)}</b></td><td><button class="btn s" data-act="copiar" data-txt="${esc(it.reserva+'\t'+it.posicion)}">📋 Copiar</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">Aún no hay materiales liberados.</div>'}</div>`}
 async function guardarItemSol(sid,i,fn,msg){const s=S.solicitudes.find(x=>x.id===sid);if(!s)return;const c=clone(s);fn(c.items[i],c);if(msg)hist(c,msg);c.updatedAt=nowISO();
   if(c.items.every(x=>x.reserva||isBloq(x))&&c.items.some(x=>x.reserva)&&['Validada','Exportada'].includes(c.estado))c.estado='Reservada';
@@ -948,8 +952,9 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
   <div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn p" data-act="impListaOK" ${n?'':'disabled'}>Agregar ${n} material(es)</button></div>`}
 
 /* ============ Novedades de versión ============ */
-const APP_VERSION='1.10';
+const APP_VERSION='1.11';
 const CHANGELOG=[
+ {v:'1.11',f:'2026-11-23',t:'Materiales atendidos como BSU',items:['♻ Si almacén atiende un material reservado como <b>BSU</b> (bien de segundo uso), Diseño registra el nuevo código / posición con el botón <b>♻ BSU</b> de la solicitud.','🔔 La contrata recibe una alerta en la app y lo ve en <b>Pendientes → Atendidos como BSU</b>, con la reserva anterior tachada y la nueva para el retiro.']},
  {v:'1.10',f:'2026-11-21',t:'Accesos por proveedor, tutorial y bot de reservas',items:['🤖 <b>Bot de reservas</b>: deja automáticamente los Excel validados en la carpeta Solicitados, ejecuta el Código_reserva y registra la reserva y posición en la app. Su estado se ve en Gestión → Bot de reservas.','🔒 Cada empresa proveedora puede tener <b>acceso solo a ciertas embarcaciones y sistemas</b>: al crear una solicitud solo verá lo que le corresponde y no podrá enviar pedidos fuera de su acceso.','❓ Nuevo <b>Tutorial</b> guiado (botón arriba a la derecha) que enseña paso a paso a crear y enviar una lista. Los usuarios nuevos lo ven al ingresar por primera vez.']},
  {v:'1.9',f:'2026-11-20',t:'Carga diaria, envío flexible y alertas de retraso',items:['⬆ En Embarcaciones: <b>Cargar actividades y grafos (Excel)</b> con vista previa; solo se agrega lo nuevo y no se elimina nada.','📨 Puede <b>enviar la solicitud sin grafo ni Pos.</b> si no los conoce: el planificador los asignará.','✏ Mientras su solicitud <b>no haya sido revisada</b>, puede corregirla (agregar materiales o cambiar la embarcación).','✉ Los correos se abren directo en <b>Gmail</b>, <b>Outlook web</b> o la app de correo del equipo.','🏷 El estado <b>Enviada</b> ahora se llama <b>Solicitado</b>, y el indicador <b>Con reserva</b> cuenta las solicitudes reservadas y las ya atendidas.','⏰ Alerta de <b>actividades retrasadas</b> para planificadores; 📅 el periodo se asigna a cada embarcación.']},
  {v:'1.8',f:'2026-11-19',t:'Estados SAP y pendientes de la contrata',items:['✅ El Excel devuelto por el script actualiza cada material como <b>Reservado</b> o <b>Bloqueado</b>.','🔓 En Bloqueos: marque <b>Solicitud de desbloqueo enviada</b> y, cuando el código esté desbloqueado, cargue su <b>reserva y posición</b> ahí mismo.','📋 Las contratas ven en <b>Pendientes</b> sus códigos bloqueados, sus materiales sin código y una alerta 🎉 cuando ya tienen reserva.']},
@@ -1059,7 +1064,45 @@ function refsPend(){const out=[];visibles(false).forEach(s=>{if(s.estado==='Anul
 function liberados(){const out=[];visibles(false).forEach(s=>(s.items||[]).forEach((it,i)=>{if(it.liberadoEn&&it.reserva)out.push({s,it,i})}));return out.sort((a,b)=>String(b.it.liberadoEn).localeCompare(String(a.it.liberadoEn)))}
 function libVisto(){try{return localStorage.getItem('pm_lib_'+S.cuenta)||''}catch(e){return ''}}
 function libNuevos(){const v=libVisto();return liberados().filter(x=>String(x.it.liberadoEn)>v)}
-function libBanner(){if(can('reserva')||can('validar'))return '';const L=libNuevos();if(!L.length)return '';
+/* ============ BSU (bien de segundo uso) ============ */
+function bsuCambios(){const out=[];visibles(false).forEach(s=>{if(s.estado==='Anulada')return;(s.items||[]).forEach((it,i)=>{if(it.bsu&&it.bsu.en)out.push({s,it,i})})});return out.sort((a,b)=>String(b.it.bsu.en).localeCompare(String(a.it.bsu.en)))}
+function bsuVisto(){try{return localStorage.getItem('pm_bsu_'+S.cuenta)||''}catch(e){return ''}}
+function bsuBanner(){if(can('reserva')||can('validar'))return '';const v=bsuVisto(),L=bsuCambios().filter(x=>String(x.it.bsu.en)>v);if(!L.length)return '';
+  return `<div class="bsubox" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px">♻ <span><b>${L.length}</b> material(es) de sus pedidos <b>se atenderán como BSU</b> (bien de segundo uso): la reserva anterior se eliminó y tienen <b>nueva reserva / posición</b>. ${L.slice(0,3).map(x=>`<span class="mono">${esc((x.it.bsu.anterior||{}).codigo||x.it.codigo)}</span> → <b class="mono">${esc(x.it.codigo)} · ${esc(x.it.reserva)}/${esc(x.it.posicion)}</b>`).join(' · ')}${L.length>3?' …':''}</span><div style="flex:1"></div><button class="btn s" data-act="go" data-v="bloqueos">Ver</button><button class="btn s" data-act="bsuVisto">Entendido</button></div>`}
+function mBSU(M){const it=S.draft.items[M.i],v=M.v;
+  return `<h2>♻ Cambiar a BSU (bien de segundo uso)</h2><p class="small muted" style="margin-top:-8px">Úselo cuando almacén atienda el material como BSU y en SAP ya eliminó la reserva original y cargó el BSU con una <b>nueva posición</b>. La contrata verá una alerta en la app.</p>
+  <div class="card" style="margin:0 0 12px;background:#f8fafc"><div class="small muted">Actual</div><b class="mono">${esc(it.codigo)}</b> ${esc(it.desc)} · ${esc(it.cantidad)} ${esc(it.um)}<div>Reserva <b class="mono">${esc(it.reserva)}</b> / Pos. <b class="mono">${esc(it.posicion||'—')}</b></div></div>
+  <div class="grid g2">
+   <div><label>Código BSU</label><input class="mono" data-b="modal.v.codigo" value="${esc(v.codigo)}"><div class="small muted">Si el BSU tiene otro código en SAP, cámbielo.</div></div>
+   <div><label>Cantidad</label><input class="mono" data-b="modal.v.cantidad" value="${esc(v.cantidad)}" inputmode="decimal"></div>
+   <div style="grid-column:1/-1"><label>Descripción</label><input data-b="modal.v.desc" value="${esc(v.desc)}"></div>
+   <div><label>Reserva</label><input class="mono" data-b="modal.v.reserva" value="${esc(v.reserva)}"></div>
+   <div><label>Nueva posición *</label><input class="mono" data-b="modal.v.posicion" value="${esc(v.posicion)}" placeholder="Pos. del BSU"></div>
+   <div style="grid-column:1/-1"><label>Nota (opcional)</label><input data-b="modal.v.nota" value="${esc(v.nota)}" placeholder="Ej. almacén entrega BSU, vale 1234"></div></div>
+  <label style="display:flex;gap:8px;align-items:center;font-weight:500;margin-top:10px"><input type="checkbox" style="width:auto" data-b="modal.v.avisar" ${v.avisar?'checked':''}> Preparar correo para avisar a la contrata</label>
+  <div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn p" data-act="bsuOK">Guardar cambio a BSU</button></div>`}
+function mAvisoBSU(M){const C=correosSol(M.s);const h=M.s.header;const lineas=M.items.map(it=>{const a=it.bsu.anterior||{};return `- Antes: ${a.codigo||''} ${a.desc||''} — Reserva ${a.reserva||'—'} / Pos. ${a.posicion||'—'} (ELIMINADA)
+  Ahora (BSU): ${it.codigo} ${it.desc} — ${it.cantidad} ${it.um}: Reserva ${it.reserva} / Pos. ${it.posicion}`}).join('\n');
+  const n={para:C.c1,cc:C.c2,asunto:`Material atendido como BSU — ${h.proyecto||''} / Pos. ${h.pos||''}`,cuerpo:`Estimados:
+
+Les informamos que almacén atenderá el siguiente material como BSU (bien de segundo uso). La reserva anterior fue eliminada y se generó una nueva posición:
+
+${lineas}
+
+Por favor, utilicen la nueva reserva / posición para el retiro del material.
+
+Embarcación: ${h.proyecto||'—'} · Sistema: ${h.sistema||'—'} · Grafo ${h.grafo||'—'} · Pos. ${h.pos||'—'}
+Actividad: ${h.nombreActividad||'—'}
+
+Saludos,
+Jefatura de Diseño — Astillero TASA`};
+  return `<h2>✉ Avisar a la contrata del cambio a BSU</h2><p class="small muted" style="margin-top:-8px">La contrata ya ve el cambio y la alerta en su app. Envíele también el correo.</p>
+  <label>Para · Contrata</label><div class="mono small" style="margin-bottom:6px;word-break:break-all">${n.para.map(esc).join('; ')||'— sin correos —'}</div>
+  <label>CC · Responsables</label><div class="mono small" style="margin-bottom:6px;word-break:break-all">${n.cc.map(esc).join('; ')||'—'}</div>
+  <label>Mensaje</label><textarea rows="10" readonly>${esc(n.asunto+'\n\n'+n.cuerpo)}</textarea>
+  <div class="mfoot" style="justify-content:flex-start">${mailBtns(n)}<button class="btn" data-act="copiar" data-txt="${esc(n.asunto+'\n\n'+n.cuerpo)}">Copiar mensaje</button><div style="flex:1"></div><button class="btn" data-act="closeM">Cerrar</button></div>`}
+function libBanner(){return bsuBanner()+libBanner0()}
+function libBanner0(){if(can('reserva')||can('validar'))return '';const L=libNuevos();if(!L.length)return '';
   return `<div class="okbox" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px">🎉 <span><b>${L.length}</b> material(es) que estaban bloqueados o sin código <b>ya tienen reserva</b>: ${L.slice(0,4).map(x=>`<span class="mono">${esc(x.it.codigo)}</span> → <b class="mono">${esc(x.it.reserva)}/${esc(x.it.posicion)}</b>`).join(' · ')}${L.length>4?' …':''}</span><div style="flex:1"></div><button class="btn s" data-act="go" data-v="bloqueos">Ver</button><button class="btn s" data-act="libVisto">Entendido</button></div>`}
 function mAvisoRes(M){const C=correosSol(M.s);const h=M.s.header;const lineas=M.items.map(it=>`- ${it.codigo} ${it.desc} — ${it.cantidad} ${it.um}: Reserva ${it.reserva} / Pos. ${it.posicion}`).join('\n');
   const n={para:C.c1,cc:C.c2,asunto:`Reserva disponible — ${h.proyecto||''} / Pos. ${h.pos||''} — ${M.items.length} material(es) liberado(s)`,cuerpo:`Estimados:\n\nLos siguientes materiales que estaban bloqueados (o sin código) ya cuentan con reserva:\n\n${lineas}\n\nEmbarcación: ${h.proyecto||'—'} · Sistema: ${h.sistema||'—'} · Grafo ${h.grafo||'—'} · Pos. ${h.pos||'—'}\nActividad: ${h.nombreActividad||'—'}\n\nPuede copiar la reserva / pos desde la app de Pedidos de Material.\n\nSaludos,\nJefatura de Diseño — Astillero TASA`};
@@ -1138,7 +1181,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-21 11:00';
+const BUILD='2026-11-23 08:30';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1147,7 +1190,7 @@ const tieneRes=it=>!!it.reserva||/^reserv/i.test(String(it.estado||''));
 /* ============ Modales ============ */
 function modalHTML(){const M=S.modal;let body='';
   if(M.t==='calc')body=mCalc(M);else if(M.t==='ref')body=mRef(M);else if(M.t==='mat')body=mMat(M);else if(M.t==='emb')body=mEmb(M);
-  else if(M.t==='reserva')body=mReserva(M);else if(M.t==='obs')body=mObs(M);else if(M.t==='emp')body=mEmp(M);else if(M.t==='user')body=mUser(M);else if(M.t==='plantSave')body=mPlantSave(M);else if(M.t==='plantEdit')body=mPlantEdit(M);else if(M.t==='nuevaDesde')body=mNuevaDesde(M);else if(M.t==='alerta')body=mAlerta(M);else if(M.t==='impLista')body=mImpLista(M);else if(M.t==='novedades')body=mNovedades(M);else if(M.t==='mejResp')body=mMejResp(M);else if(M.t==='avisoRes')body=mAvisoRes(M);else if(M.t==='impEmb')body=mImpEmb(M);else if(M.t==='tpl')body=mTpl(M);
+  else if(M.t==='reserva')body=mReserva(M);else if(M.t==='obs')body=mObs(M);else if(M.t==='emp')body=mEmp(M);else if(M.t==='user')body=mUser(M);else if(M.t==='plantSave')body=mPlantSave(M);else if(M.t==='plantEdit')body=mPlantEdit(M);else if(M.t==='nuevaDesde')body=mNuevaDesde(M);else if(M.t==='alerta')body=mAlerta(M);else if(M.t==='impLista')body=mImpLista(M);else if(M.t==='novedades')body=mNovedades(M);else if(M.t==='mejResp')body=mMejResp(M);else if(M.t==='avisoRes')body=mAvisoRes(M);else if(M.t==='bsu')body=mBSU(M);else if(M.t==='avisoBSU')body=mAvisoBSU(M);else if(M.t==='impEmb')body=mImpEmb(M);else if(M.t==='tpl')body=mTpl(M);
   else if(M.t==='foto')body=`<h2>Foto referencial</h2>${M.src?`<img src="${esc(M.src)}" style="max-width:100%;border-radius:8px">`:'Cargando…'}<div class="mfoot"><button class="btn" data-act="closeM">Cerrar</button></div>`;
   else if(M.t==='asignar')body=mAsignar(M);else if(M.t==='confirm')body=`<h2>${esc(M.title)}</h2><p>${esc(M.msg)}</p><div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn ${M.danger?'d':'p'}" data-act="confirmOK">${esc(M.ok||'Aceptar')}</button></div>`;
   else if(M.t==='info')body=`<h2>${esc(M.title)}</h2><div>${M.html}</div><div class="mfoot"><button class="btn p" data-act="closeM">Entendido</button></div>`;
@@ -1371,6 +1414,19 @@ const ACT={
   async exportar(){const d=S.draft;if(S.dirty)await saveDraft('Guardó antes de exportar');if(!window.XLSX){toast('No se pudo cargar el generador de Excel.','bad');return}
     if(!d.fechaCarga)d.fechaCarga=dmy(new Date());const ok=await saveFile(nombreArchivo(d),buildXL(d));
     if(ok&&d.estado==='Validada'){d.estado='Exportada';await saveDraft('Generó Excel para carga')}else if(ok){await saveDraft('Volvió a generar el Excel')}},
+  bsuModal(el){const i=+el.dataset.i,it=S.draft.items[i];S.modal={t:'bsu',i,v:{codigo:it.codigo||'',desc:it.desc||'',cantidad:it.cantidad||'',reserva:it.reserva||'',posicion:'',nota:'',avisar:true}};render()},
+  async bsuOK(){const M=S.modal,v=M.v,d=S.draft,it=d.items[M.i];const pos=String(v.posicion||'').trim(),res=String(v.reserva||'').trim(),cod=String(v.codigo||'').trim();
+    if(!pos){toast('Ingrese la nueva posición del BSU.','bad');return}if(!res){toast('Ingrese la reserva.','bad');return}
+    if(pos===String(it.posicion||'')&&res===String(it.reserva||'')&&cod===String(it.codigo||'')){toast('La reserva / posición es la misma de antes: ingrese la nueva posición.','bad');return}
+    const ant={codigo:it.codigo||'',desc:it.desc||'',cantidad:it.cantidad||'',reserva:it.reserva||'',posicion:it.posicion||''};
+    it.bsu={en:nowISO(),por:S.cuenta,nota:String(v.nota||'').trim(),anterior:ant};
+    it.codigo=cod||it.codigo;it.desc=String(v.desc||'').trim()||it.desc;if(String(v.cantidad||'').trim())it.cantidad=String(v.cantidad).trim();
+    it.reserva=res;it.posicion=pos;it.estado='Reservado';
+    const avisar=v.avisar;S.modal=null;
+    await saveDraft(`♻ Cambió a BSU: ${ant.codigo} (reserva ${ant.reserva}/${ant.posicion}, eliminada) → ${it.codigo} reserva ${res}/${pos}${it.bsu.nota?' · '+it.bsu.nota:''}`);
+    toast('Material cambiado a BSU. La contrata verá la alerta.');
+    if(avisar){S.modal={t:'avisoBSU',s:S.draft,items:[it]};render()}},
+  bsuVisto(){try{localStorage.setItem('pm_bsu_'+S.cuenta,nowISO())}catch(e){}render()},
   reservaModal(){S.modal={t:'reserva',tab:'man',reserva:resumenReserva(S.draft).split(',')[0]||'',ini:'1',inc:'1',soloVacias:false};render()},
   resTab(el){S.modal.tab=el.dataset.t;render()},
   async resOK(){const M=S.modal,d=S.draft;if(!M.reserva.trim()){toast('Ingrese la reserva.','bad');return}let p=num(M.ini)||1;const inc=num(M.inc)||1;
