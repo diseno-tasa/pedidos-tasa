@@ -25,7 +25,10 @@ sistemas = *
 carpeta_especialidad = TUBERIAS
 subcarpeta_solicitados = Solicitados
 subcarpeta_reservados  = Reservados
-; Ejecutable que carga en SAP (dentro de la carpeta del sistema). * = cualquier texto
+; Ejecutable que carga en SAP:
+;  - un patrón (C*digo_reserva*.exe) = usa el .exe que está dentro de cada carpeta TUBERIAS
+;  - una ruta completa (C:\Reservatron\Reservatron.exe) = una sola instalación para todos los proyectos
+;    (recomendado, compilada con --onedir): el bot le indica la carpeta con --carpeta
 ejecutable = C*digo_reserva*.exe
 
 [proceso]

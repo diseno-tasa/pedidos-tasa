@@ -396,6 +396,8 @@ class Carpetas:
         return os.path.join(sdir, nombre)
 
     def exe(self, sdir):
+        if os.path.isabs(self.c.exe_patron):  # instalación central del Reservatron (se le pasa --carpeta)
+            return self.c.exe_patron if os.path.isfile(self.c.exe_patron) else None
         l = sorted(glob.glob(os.path.join(sdir, self.c.exe_patron)))
         return l[0] if l else None
 
@@ -615,6 +617,8 @@ class Bot:
             try:
                 kw = {'creationflags': subprocess.CREATE_NEW_CONSOLE} if os.name == 'nt' else {}
                 cmd = ([exe] if exe.lower().endswith('.exe') or os.name == 'nt' else [sys.executable, exe]) + self.c.exe_args
+                if os.path.normcase(os.path.dirname(os.path.abspath(exe))) != os.path.normcase(os.path.abspath(sdir)):
+                    cmd += ['--carpeta', sdir]
                 self.st.setdefault('intentos', {})[sdir] = now_iso()
                 r = subprocess.run(cmd, cwd=sdir, timeout=self.c.exe_timeout, stdin=subprocess.DEVNULL, **kw)
                 quedan = [p for p in pend if os.path.exists(p)]
