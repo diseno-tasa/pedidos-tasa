@@ -264,7 +264,7 @@ const setPath=(o,p,v)=>{const ks=p.split('.');let a=o;for(let i=0;i<ks.length-1;
 let toastT;function toast(m,cls=''){let t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t)}t.className='toast '+cls;t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',3500)}
 
 /* ============ Constantes de negocio ============ */
-const ESTADOS=['Borrador','Enviada','Observada','Validada','Exportada','Reservada','Atendida','Anulada'];
+const ESTADOS=['Borrador','Enviada','Observada','Validada','Exportada','Reservada','Anulada'];
 const PERMS={ver_todas:'Ver todas las solicitudes',crear:'Crear solicitudes',validar:'Revisar, validar y observar',exportar:'Generar Excel de carga',reserva:'Registrar reservas',editar_mat:'Editar materiales',editar_emb:'Editar embarcaciones y contactos',formulas:'Editar fórmulas',usuarios:'Gestionar usuarios, roles y periodos',eliminar:'Eliminar datos'};
 const DEF_ROLES=[
   {id:'admin',nombre:'Administrador',permisos:Object.keys(PERMS)},
@@ -405,7 +405,7 @@ function sesionValida(){const s=S.sesion;if(!s||!s.usuario)return null;
   if(s.usuario==='__owner__')return S.owner?'__owner__':null;
   const c=S.cuentas.find(x=>x.id===s.usuario);const cr=S.creds[s.usuario];
   if(!c||c.activo===false||!cr||String(cr.hash||'').slice(0,16)!==s.tag)return null;return s.usuario}
-function afterDataDemo(){
+function afterDataDemo(){(S.solicitudes||[]).forEach(s=>{if(s.estado==='Atendida')s.estado='Reservada'});
   if(S.loaded.cuentas&&S.loaded.creds&&S.sesion!==undefined){const u=sesionValida();
     if(S.cuenta&&!u&&S.cuenta!==S.loggingIn){S.cuenta=null;S.viewAs=null;S.view='inicio';S.draft=null;toast('Su sesión terminó (contraseña cambiada o usuario desactivado).')}
     if(u)S.cuenta=u}
@@ -557,7 +557,7 @@ function revisar(s){const I=[],h=s.header||{};const pre=['Borrador','Observada']
   if(!h.sistema)I.push({n:L,m:pre?'Sistema sin definir: el planificador lo asignará.':'Falta el sistema.'});
   const sis=emb&&(emb.sistemas||[]).find(x=>norm(x.nombre)===norm(h.sistema));
   if(emb&&h.sistema&&!sis)I.push({n:'aviso',m:`El sistema "${h.sistema}" no existe en ${emb.nombre}.`});
-  if(h.proyecto&&s.empresaId&&accEmp(s.empresaId)&&!['Anulada','Atendida'].includes(s.estado)){const pl0=can('validar'),en=(empBy(s.empresaId)||{}).nombre||'La empresa';const nv=pl0?'aviso':'error';
+  if(h.proyecto&&s.empresaId&&accEmp(s.empresaId)&&!['Anulada','Atendida','Reservada'].includes(s.estado)){const pl0=can('validar'),en=(empBy(s.empresaId)||{}).nombre||'La empresa';const nv=pl0?'aviso':'error';
    if(!permEmb(s.empresaId,h.proyecto))I.push({n:nv,envio:pl0?0:1,m:`🔒 ${en} no tiene acceso para solicitar material en ${h.proyecto}.`});
    else if(h.sistema&&!permSis(s.empresaId,h.proyecto,h.sistema))I.push({n:nv,envio:pl0?0:1,m:`🔒 ${en} no tiene acceso al sistema ${h.sistema} de ${h.proyecto}.`});
    else if(!h.sistema&&sisPerm(s.empresaId,h.proyecto))I.push({n:pl0?'aviso':L,envio:pl0?0:1,m:`🔒 Elija el sistema: ${en} solo tiene acceso a algunos sistemas de ${h.proyecto}.`})}
@@ -669,7 +669,7 @@ function acciones(s,err){const b=[],e=s.estado,pl=can('validar'),own=s.createdBy
   if(pl&&['Validada'].includes(e))b.push(`<button class="btn" data-act="estado" data-e="Exportada">Marcar como cargada</button>`);
   if(can('reserva')&&['Exportada','Reservada'].includes(e))b.push(`<button class="btn" data-act="reservaModal">Registrar reserva / pos</button>`);
   {const pend=(s.items||[]).filter(i=>!i.reserva&&!sigueBloq(i));if(can('exportar')&&['Exportada','Reservada'].includes(e)&&(s.items||[]).some(i=>i.reserva)&&pend.length)b.push(`<button class="btn p" data-act="exportarPost">⬇ Excel carga posterior (${pend.length} ítem${pend.length>1?'s':''})</button>`)}
-  if(pl&&e==='Reservada')b.push(`<button class="btn ok" data-act="estado" data-e="Atendida" ${(s.items||[]).some(isBloq)?'disabled title="Hay códigos bloqueados pendientes de carga"':''}>Marcar atendida</button>`);
+  /* 'Reservada' es el estado final: Diseño llega hasta la reserva (ya no se marca 'Atendida') */
   if(can('crear')&&!S.isNew)b.push(`<button class="btn" data-act="duplicar">Duplicar</button>`);
   if((pl||(own&&e==='Borrador'))&&!['Anulada','Atendida'].includes(e)&&!S.isNew)b.push(`<button class="btn d" data-act="anular">Anular</button>`);
   if(pl&&['Anulada','Atendida'].includes(e))b.push(`<button class="btn" data-act="estado" data-e="Validada">Reabrir</button>`);
@@ -852,7 +852,7 @@ function botVista(v){const c=miCuenta()||{},nom=esc(String(c.nombre||'').split('
   if(v==='formulas')return botHTML('Calculo las cantidades por ti: ingresas las medidas y aplico la fórmula de cada material (m², kg, metros, fracción de plancha).',{title:'Cálculos automáticos',working:true});
   if(v==='gestion')return botHTML(can('usuarios')?'Panel de control: usuarios, roles, periodos, cargos y alertas. Todo lo que configures aquí lo aplico en toda la app.':'Aquí puedes cambiar tu contraseña y registrar los correos a los que te llegarán los avisos.',{title:'Gestión'});
   return ''}
-const PASOS=[['Borrador','Registro'],['Enviada','Solicitado'],['Validada','Validada'],['Exportada','Cargada'],['Reservada','Reservada'],['Atendida','Atendida']];
+const PASOS=[['Borrador','Registro'],['Enviada','Solicitado'],['Validada','Validada'],['Exportada','Cargada'],['Reservada','Reservada ✔']];
 function estadoPanel(s){const e=s.estado,pl=can('validar');let idx=PASOS.findIndex(p=>p[0]===e);if(e==='Observada')idx=1;
   const res=resumenReserva(s),falta=revisar(s).some(x=>x.envio);let msg='',mood='ok',working=false,title='Estado de tu pedido';
   if(cerrada(s)){msg='El proyecto de esta embarcación está <b>cerrado</b>: la solicitud queda solo para consulta.';mood='worry'}
@@ -955,7 +955,7 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
 /* ============ Novedades de versión ============ */
 const APP_VERSION='1.11';
 const CHANGELOG=[
- {v:'1.11',f:'2026-11-23',t:'Materiales atendidos como BSU',items:['🔎 Para Diseño: botón <b>♻ Cambio a BSU</b> en el Tablero para buscar el material por <b>reserva / posición</b> (ej. 42449700/99) y cambiarlo sin abrir la solicitud.','♻ Si almacén atiende un material reservado como <b>BSU</b> (bien de segundo uso), Diseño registra el nuevo código / posición con el botón <b>♻ BSU</b> de la solicitud.','🔔 La contrata recibe una alerta en la app y lo ve en <b>Pendientes → Atendidos como BSU</b>, con la reserva anterior tachada y la nueva para el retiro.']},
+ {v:'1.11',f:'2026-11-23',t:'Materiales atendidos como BSU',items:['✔ <b>Reservada</b> es ahora el estado final del pedido (Diseño llega hasta la reserva): se quitó el paso "Atendida" y las que estaban atendidas se muestran como Reservadas.','🔎 Para Diseño: botón <b>♻ Cambio a BSU</b> en el Tablero para buscar el material por <b>reserva / posición</b> (ej. 42449700/99) y cambiarlo sin abrir la solicitud.','♻ Si almacén atiende un material reservado como <b>BSU</b> (bien de segundo uso), Diseño registra el nuevo código / posición con el botón <b>♻ BSU</b> de la solicitud.','🔔 La contrata recibe una alerta en la app y lo ve en <b>Pendientes → Atendidos como BSU</b>, con la reserva anterior tachada y la nueva para el retiro.']},
  {v:'1.10',f:'2026-11-21',t:'Accesos por proveedor, tutorial y bot de reservas',items:['🤖 <b>Bot de reservas</b>: deja automáticamente los Excel validados en la carpeta Solicitados, ejecuta el Código_reserva y registra la reserva y posición en la app. Su estado se ve en Gestión → Bot de reservas.','🔒 Cada empresa proveedora puede tener <b>acceso solo a ciertas embarcaciones y sistemas</b>: al crear una solicitud solo verá lo que le corresponde y no podrá enviar pedidos fuera de su acceso.','❓ Nuevo <b>Tutorial</b> guiado (botón arriba a la derecha) que enseña paso a paso a crear y enviar una lista. Los usuarios nuevos lo ven al ingresar por primera vez.']},
  {v:'1.9',f:'2026-11-20',t:'Carga diaria, envío flexible y alertas de retraso',items:['⬆ En Embarcaciones: <b>Cargar actividades y grafos (Excel)</b> con vista previa; solo se agrega lo nuevo y no se elimina nada.','📨 Puede <b>enviar la solicitud sin grafo ni Pos.</b> si no los conoce: el planificador los asignará.','✏ Mientras su solicitud <b>no haya sido revisada</b>, puede corregirla (agregar materiales o cambiar la embarcación).','✉ Los correos se abren directo en <b>Gmail</b>, <b>Outlook web</b> o la app de correo del equipo.','🏷 El estado <b>Enviada</b> ahora se llama <b>Solicitado</b>, y el indicador <b>Con reserva</b> cuenta las solicitudes reservadas y las ya atendidas.','⏰ Alerta de <b>actividades retrasadas</b> para planificadores; 📅 el periodo se asigna a cada embarcación.']},
  {v:'1.8',f:'2026-11-19',t:'Estados SAP y pendientes de la contrata',items:['✅ El Excel devuelto por el script actualiza cada material como <b>Reservado</b> o <b>Bloqueado</b>.','🔓 En Bloqueos: marque <b>Solicitud de desbloqueo enviada</b> y, cuando el código esté desbloqueado, cargue su <b>reserva y posición</b> ahí mismo.','📋 Las contratas ven en <b>Pendientes</b> sus códigos bloqueados, sus materiales sin código y una alerta 🎉 cuando ya tienen reserva.']},
@@ -1199,7 +1199,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-23 09:00';
+const BUILD='2026-11-23 15:10';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1797,7 +1797,7 @@ function ensureSolSub(){if(!S.loaded.rolesCfg||!S.loaded.cuentas)return;const c=
 
 /* --- Funciones que eligen entre Firebase y el modo de demostración --- */
 function subscribe(){return S.fb?subscribeFB():subscribeDemo()}
-function afterData(){if(!S.fb)return afterDataDemo();
+function afterData(){if(!S.fb)return afterDataDemo();(S.solicitudes||[]).forEach(s=>{if(s.estado==='Atendida')s.estado='Reservada'});
   if(S.cuenta&&S.loaded.cuentas){const c=S.cuentas.find(x=>x.id===S.cuenta);if(!c||c.activo===false){toast('Su usuario fue desactivado o eliminado.');FB.auth.signOut();return}S.owner=c.rol==='admin';S.me=c}
   const c=miCuenta();S.realRole=c?c.rol:null;if(!S.viewAs)S.role=S.realRole;ensureSolSub();
   if(S.draft&&!S.dirty&&!S.isNew){const s=S.solicitudes.find(x=>x.id===S.sel);if(s)S.draft=clone(s)}
