@@ -458,6 +458,7 @@ function render(){
   const v=S.view, nv=navItems();const c=miCuenta()||{};
   const nav=cls=>`<nav class="${cls}">${nv.map(([k,l])=>`<button class="${(v===k||(k==='solicitudes'&&v==='detalle'&&!S.isNew)||(k==='nueva'&&v==='detalle'&&S.isNew))?'on':''}" data-act="go" data-v="${k}">${IC[k]}<span>${l}</span></button>`).join('')}</nav>`;
   const emp=empBy(myEmpresa());
+  const _mt=S.modal&&S.modal.t,_ms=_mt?[...a.querySelectorAll('.ov,.ov .modal,.ov .scroll')].map(e=>e.scrollTop):null;
   a.innerHTML=`<div class="top"><div class="brand"><img class="logo" src="${LOGO_S}" alt="TASA"><span class="bl">Pedidos de Material</span><span class="bs">Pedidos TASA</span><span class="nm" style="font-weight:400;opacity:.8">&nbsp;· Astillero TASA</span></div><div class="sp"></div>
    ${S.realRole==='admin'?`<select data-ch="viewAs" title="Ver la app como otro rol">${rolesList().map(r=>`<option value="${esc(r.id)}" ${S.role===r.id?'selected':''}>Ver como: ${esc(r.nombre)}</option>`).join('')}</select>`:''}
    ${S.realRole==='admin'&&S.viewAs&&!can('ver_todas')?`<select data-ch="viewEmp"><option value="">Empresa…</option>${S.empresas.map(e=>`<option value="${e.id}" ${myEmpresa()===e.id?'selected':''}>${esc(e.nombre)}</option>`).join('')}</select>`:''}
@@ -469,6 +470,7 @@ function render(){
    ${S.stale?'<div class="banner">No se puede conectar con la base de datos todavía; lo mostrado puede estar desactualizado.</div>':''}
    ${S.cuenta==='__owner__'?'<div class="banner">Acceso de recuperación de la propietaria. Cree o restablezca su usuario en Gestión → Usuarios.</div>':''}
    <div class="layout">${nav('side')}<main>${S.view!=='detalle'?botVista(S.view):''}${view()}</main></div>${nav('bottom')}${S.modal?modalHTML():''}`;
+  if(_ms&&S.modal&&S.modal.t===_mt){const L=[...a.querySelectorAll('.ov,.ov .modal,.ov .scroll')];if(L.length===_ms.length)L.forEach((e,i)=>{if(_ms[i])e.scrollTop=_ms[i]})}
   if(S.tour)requestAnimationFrame(tourPaint);
 }
 function view(){switch(S.view){case 'inicio':return vInicio();case 'solicitudes':return vLista();case 'detalle':return vDetalle();case 'materiales':return vMateriales();case 'embarcaciones':return vEmb();case 'gestion':return vGestion();case 'plantillas':return vPlantillas();case 'bloqueos':return vBloqueos();case 'mejoras':return vMejoras();case 'formulas':return vFormulas();default:return vInicio()}}
@@ -1026,7 +1028,8 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
   <label style="margin-top:10px">O pegue aquí las filas copiadas de Excel</label><textarea rows="4" data-b="modal.txt" placeholder="31015349&#9;LIJA FIERRO NRO.40-3&#9;9&#10;&#9;PLANCHA AC.NAVAL 12.5MM&#9;1&#9;320 x 1500">${esc(M.txt||'')}</textarea>
   <div class="row" style="margin-top:6px"><button class="btn s" data-act="impListaPaste">Procesar texto pegado</button></div>
   ${R.some(r=>r.foto)?'<div class="warn" style="margin-top:12px">📷 <b>Lista leída de una foto:</b> compare cada línea con la foto, corrija el material si hace falta y marque ✔ las que estén correctas. <b>Solo se agregan las líneas comprobadas.</b></div>':''}
-  ${R.length?`<div class="scroll" style="margin-top:12px;max-height:46vh;overflow:auto"><table class="rs"><thead><tr><th>${R.some(r=>r.foto)?'✔':''}</th><th>${R.some(r=>r.foto)?'En la foto':'Archivo'}</th><th>Se agregará como</th><th>Cant.</th><th>Avisos</th></tr></thead><tbody>${R.map((r,i)=>`<tr>
+  ${R.some(r=>r.ok)?`<div class="row" style="margin-top:10px"><button class="btn s p" data-act="impTodas">✔ Aceptar todas${R.some(r=>r.foto)?' (ya las comparé con la foto)':''}</button>${n?'<button class="btn s" data-act="impNinguna">Desmarcar todas</button>':''}<span class="small muted">${n} de ${R.filter(r=>r.ok).length} marcadas</span></div>`:''}
+  ${R.length?`<div class="scroll" style="margin-top:8px;max-height:46vh;overflow:auto"><table class="rs"><thead><tr><th>${R.some(r=>r.foto)?'✔':''}</th><th>${R.some(r=>r.foto)?'En la foto':'Archivo'}</th><th>Se agregará como</th><th>Cant.</th><th>Avisos</th></tr></thead><tbody>${R.map((r,i)=>`<tr>
    <td data-l="Usar"><input type="checkbox" style="width:auto" data-ch="impUsar" data-i="${i}" ${r.usar?'checked':''} ${r.ok?'':'disabled'}></td>
    <td data-l="${r.foto?'En la foto':'Archivo'}" class="small">${r.foto?`📷 ${esc(r.texto||r.fotoCant)} ${confChip(r.m?r.confianza:'baja')}${(r.alts||[]).length?`<div style="margin-top:4px"><select data-ch="impAlt" data-i="${i}" style="min-width:200px"><option value="">— Ninguno: agregar como referencial —</option>${r.alts.map(c=>{const m=matBy(c);return m?`<option value="${esc(c)}" ${r.m&&String(r.m.codigo)===String(c)?'selected':''}>${esc(c)} · ${esc(m.desc)} (${esc(m.um)})</option>`:''}).join('')}</select></div>`:''}`:`<span class="mono">${esc(r.codigo||'—')}</span> ${esc(r.desc)}${r.um?` <span class="muted">(${esc(r.um)})</span>`:''}`}</td>
    <td data-l="Se agregará como" class="small">${r.m?`${r.tipo==='codigo'?'✅':r.tipo==='desc'?'✅':'≈'} <span class="mono">${esc(r.m.codigo)}</span> ${esc(r.m.desc)} <b>${esc(r.m.um)}</b>${r.tipo==='sug'?' <span class="chip ref">sugerido</span> <button class="btn s" data-act="impComoRef" data-i="${i}">No es este → referencial</button>':''}`:`<span class="chip ref">REFERENCIAL</span> ${esc(r.desc||r.codigo)}`}</td>
@@ -1413,7 +1416,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 12:10';
+const BUILD='2026-11-24 12:20';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1892,6 +1895,8 @@ const CH={
   impFoto(el){const f=el.files[0];el.value='';if(f)impFotoLeer(f)},
   impFotoDirecto(el){const f=el.files[0];el.value='';if(!f)return;S.modal={t:'impLista',wide:true,rows:[],txt:''};impFotoLeer(f)},
   fotoAnalizar(){impFotoAnalizar(false)},
+  impTodas(){(S.modal.rows||[]).forEach(r=>{if(r.ok)r.usar=true});render()},
+  impNinguna(){(S.modal.rows||[]).forEach(r=>{r.usar=false});render()},
   usoRefrescar(){S.uso=null;usoCargar()},
   fotoAnteriorDirecto(){S.modal={t:'impLista',wide:true,rows:[],txt:''};ACT.fotoAnterior()},
   fotoAnalizarTodo(){impFotoAnalizar(true)},
@@ -2062,7 +2067,7 @@ async function onAuth(u){if(S.bootstrapping)return;stopSubs();resetData();
 
 function syncDot(){const st=S.offline?['#e5534b','Sin conexión']:(S.lento||S.pend)?['#e9a23b',S.lento?'Cambios sin enviar':'Guardando…']:['#57c27a','En línea'];
   return `<span title="${st[1]}${S.ultSync?' · último guardado '+S.ultSync.toLocaleTimeString('es-PE'):''}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;opacity:.95"><i style="width:9px;height:9px;border-radius:50%;background:${st[0]};box-shadow:0 0 0 3px rgba(255,255,255,.15)"></i><span class="nm">${st[1]}</span></span>`}
-['usoRefrescar','fotoAnalizar','fotoAnteriorDirecto','fotoAnalizarTodo','fotoQuitarArea','fotoOtraArea','fotoAnterior','fotoGirar'].forEach(k=>{ACT[k]=CH[k]});
+['impTodas','impNinguna','usoRefrescar','fotoAnalizar','fotoAnteriorDirecto','fotoAnalizarTodo','fotoQuitarArea','fotoOtraArea','fotoAnterior','fotoGirar'].forEach(k=>{ACT[k]=CH[k]});
 const ACT0={...ACT};
 Object.assign(ACT,{
   async logout(){if(!S.fb)return ACT0.logout();if(S.dirty&&S.draft&&editable(S.draft)&&tieneContenido(S.draft))saveDraft(null,true).catch(()=>{});
