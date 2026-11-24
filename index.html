@@ -1090,13 +1090,16 @@ function jsonSuelto(t){t=String(t||'').trim().replace(/^```(?:json)?/i,'').repla
 async function iaJSON(partes){const {B,ai}=await iaModelo();const pref=String((S.ajustes||{}).modeloIA||'').trim();const L=[...new Set([pref,...IA_MODELOS].filter(Boolean))];let ult;
   for(const mod of L){try{const m=B.getGenerativeModel(ai,{model:mod,generationConfig:{responseMimeType:'application/json',temperature:0.1}});
       const r=await m.generateContent(partes);return jsonSuelto(r.response.text())}
-    catch(e){ult=e;if(!/not.?found|404|not supported|unsupported|quota|429|RESOURCE_EXHAUSTED|overloaded|503/i.test(String(e&&e.message||e)))break}}
+    catch(e){ult=e;console.warn('[IA] modelo',mod,'→',e);if(/PERMISSION_DENIED|API_KEY_INVALID|API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used/i.test(String(e&&e.message||e)))break}}
   throw ult}
-function iaError(e){const m=String(e&&e.message||e);
-  if(/api.?key|PERMISSION_DENIED|permission|not been used|is disabled|not enabled|API_NOT_ACTIVATED|ai-logic|firebasevertexai/i.test(m))return 'La lectura de fotos todavía no está activada en Firebase (AI Logic). Pida al administrador activarla.';
-  if(/quota|429|RESOURCE_EXHAUSTED/i.test(m))return 'Se alcanzó el límite gratuito de lecturas por el momento. Intente de nuevo en unos minutos.';
-  if(/Failed to fetch|NetworkError|dynamically imported|import/i.test(m))return 'No se pudo conectar con el servicio de lectura. Revise la conexión e intente de nuevo.';
-  return 'No se pudo leer la foto: '+m}
+function iaError(e){const m=String(e&&e.message||e);console.error('[IA]',e);let txt;
+  if(/API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used|is disabled/i.test(m))txt='La API de AI Logic no está activada en el proyecto de Firebase.';
+  else if(/API_KEY_INVALID|API key not valid|blocked|referer|PERMISSION_DENIED/i.test(m))txt='La clave de la app no tiene permiso para usar AI Logic (revise las restricciones de la clave en Google Cloud).';
+  else if(/quota|429|RESOURCE_EXHAUSTED/i.test(m))txt='Se alcanzó el límite gratuito de lecturas por el momento. Intente de nuevo en unos minutos.';
+  else if(/Failed to fetch|NetworkError|dynamically imported module|Importing a module/i.test(m))txt='No se pudo descargar el componente de lectura (revise la red o el bloqueo del navegador).';
+  else if(/not.?found|404|is not supported|unsupported/i.test(m))txt='El modelo de IA configurado no está disponible.';
+  else txt='No se pudo leer la foto.';
+  return txt+' Detalle técnico: '+m.slice(0,400)}
 async function imgParte(file){if(!file||!/^image\//.test(file.type||'image/'))throw new Error('Elija una imagen (foto JPG o PNG).');
   let bmp;try{bmp=await createImageBitmap(file)}catch(e){throw new Error('No se pudo abrir la imagen. Si es una foto HEIC de iPhone, envíela como JPG.')}
   const k=Math.min(1,1800/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
@@ -1305,7 +1308,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-23 20:50';
+const BUILD='2026-11-24 00:20';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
