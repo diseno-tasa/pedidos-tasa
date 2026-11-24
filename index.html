@@ -1416,7 +1416,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 12:20';
+const BUILD='2026-11-24 16:45';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1759,12 +1759,17 @@ const ACT={
   impListaPaste(){const R=parsePegado(S.modal.txt);if(!R.length){toast('No se reconocieron filas. Copie desde Excel las columnas Código, Descripción, Cantidad.','bad');return}S.modal.rows=R.map(emparejar);render()},
   async plantillaLista(){if(!window.XLSX)return;const ws=XLSX.utils.aoa_to_sheet([['Código','Descripción','UM','Cantidad','Observaciones'],['31015349','LIJA FIERRO NRO.40-3','UN',9,''],['','PLANCHA AC.NAVAL 12.50X1.800X6000MM','',1,'320 x 1500']]);ws['!cols']=[{wch:12},{wch:44},{wch:8},{wch:10},{wch:24}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lista');await saveFile('plantilla_lista_materiales.xlsx',XLSX.write(wb,{type:'array',bookType:'xlsx'}))},
-  async impListaOK(){const R=S.modal.rows.filter(r=>r.usar);const d=S.draft;let nref=0;S.modal=null;render();
-    for(const r of R){if(r.m){d.items.push({codigo:String(r.m.codigo),desc:r.m.desc,um:r.m.um,cantidad:fmt(num(r.cantidad)),obs:r.obs,reserva:'',posicion:''});continue}
-      const id='REF-'+rid(),desc=(r.desc||r.codigo).toUpperCase(),um=r.um&&umsList().includes(r.um)?r.um:(r.um||'UN');
-      await setDoc('materiales/'+id,{codigo:'',ref:true,estadoRef:'pendiente',desc,um,espec:r.codigo?'Código indicado por la contrata: '+r.codigo:'',fotoId:'',fecha:nowISO(),por:S.cuenta}).catch(()=>{});
-      d.items.push({codigo:'',refId:id,desc,um,cantidad:fmt(num(r.cantidad)),obs:r.obs,espec:r.codigo?'Código indicado: '+r.codigo:'',reserva:'',posicion:''});nref++}
-    hist(d,`Importó una lista de ${R.length} materiales`);S.dirty=true;render();autoSaveSoon();toast(`${R.length} material(es) agregados${nref?` (${nref} referencial${nref>1?'es':''})`:''}. Revise las cantidades.`)},
+  async impListaOK(){const R=S.modal.rows.filter(r=>r.usar);const d=S.draft;if(!d||!R.length){S.modal=null;render();return}
+    // 1) Primero se agregan TODAS las líneas a la solicitud (sin esperar a la red), así nada se pierde si llega una actualización de Firebase
+    S.dirty=true;const nuevosRef=[];let nref=0;
+    for(const r of R){const obs=r.obs||'';if(r.m){d.items.push({codigo:String(r.m.codigo),desc:r.m.desc,um:r.m.um,cantidad:fmt(num(r.cantidad)),obs,reserva:'',posicion:''});continue}
+      const id='REF-'+rid(),desc=(r.desc||r.codigo||'').toUpperCase(),um=r.um&&umsList().includes(r.um)?r.um:(r.um||'UN');
+      nuevosRef.push(['materiales/'+id,{codigo:'',ref:true,estadoRef:'pendiente',desc,um,espec:r.codigo?'Código indicado por la contrata: '+r.codigo:'',fotoId:'',fecha:nowISO(),por:S.cuenta}]);
+      d.items.push({codigo:'',refId:id,desc,um,cantidad:fmt(num(r.cantidad)),obs,espec:r.codigo?'Código indicado: '+r.codigo:'',reserva:'',posicion:''});nref++}
+    hist(d,`Importó una lista de ${R.length} materiales`);S.modal=null;render();autoSaveSoon();
+    toast(`${R.length} material(es) agregados${nref?` (${nref} referencial${nref>1?'es':''})`:''}. Revise las cantidades.`);
+    // 2) Luego se registran los materiales referenciales en segundo plano
+    for(const [ruta,datos] of nuevosRef)await setDoc(ruta,datos).catch(e=>console.warn('[impLista] referencial',ruta,e))},
   novOK(){S.modal=null;render();marcarVista()},
   novTodas(){S.modal={t:'novedades',L:CHANGELOG,todas:true};render()},
   novAbrir(){S.modal={t:'novedades',L:CHANGELOG.slice(0,1)};render()},
