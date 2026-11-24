@@ -80,6 +80,10 @@ td input,td select{padding:5px 7px}
 .modal h2{font-size:17px;margin-bottom:14px}
 .mfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .conf-alta{background:#d3efe4;color:#0b4d3a}.conf-media{background:#fff1cc;color:#7a5200}.conf-baja{background:#fbdcd8;color:#7d1a10}
+#recorte{position:relative;display:inline-block;max-width:100%;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:#111}
+#recorte img{display:block;max-width:100%;max-height:62vh;pointer-events:none}
+#recorte .sel{position:absolute;border:2px solid #f5b400;background:rgba(245,180,0,.12);box-shadow:0 0 0 9999px rgba(0,0,0,.45);pointer-events:none}
+#recorte .sel.vacio{display:none}
 .fotoprev{max-width:100%;max-height:260px;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block}
 .fotoprev.grande{max-height:none;cursor:zoom-out}
 .fotoform{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:14px;align-items:start}
@@ -639,7 +643,7 @@ function vDetalle(){const s=S.draft;if(!s)return '<div class="empty">Seleccione 
     <td data-l="Posición">${reservaEd?`<input class="mono" style="width:60px" data-b="draft.items.${i}.posicion" value="${esc(it.posicion)}">`:`<span class="mono">${esc(it.posicion||'—')}</span>`}${it.bsu&&it.bsu.anterior?`<div class="small muted" style="white-space:nowrap">antes: <s class="mono">${esc(it.bsu.anterior.reserva||'')}/${esc(it.bsu.anterior.posicion||'')}</s></div>`:''}</td>
     <td data-l="Estado SAP">${reservaEd&&!['Borrador','Observada'].includes(s.estado)?`<select data-ch="estSap" data-i="${i}" style="min-width:120px">${EST_SAP.map(x=>`<option value="${x}" ${(it.estado||'')===x?'selected':''}>${labSap(x)||'—'}</option>`).join('')}</select>${isBloq(it)&&it.bloqueo&&it.bloqueo.desde?`<div class="small muted">${diasDesde(it.bloqueo.desde)} día(s)</div>`:''}`:(chipSap(it.estado)||'<span class="muted">—</span>')}</td>
     <td>${ed?`<button class="btn s d" data-act="delItem" data-i="${i}">✕</button>`:''}${reservaEd&&it.reserva&&!S.isNew?`<button class="btn s" data-act="bsuModal" data-i="${i}" title="Almacén lo entrega como BSU: registrar el nuevo código / posición y avisar a la contrata" style="white-space:nowrap">♻ BSU</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Agregue materiales con el buscador. Si no lo encuentra, regístrelo como referencial.</div>'}
-   ${ed?'<div class="row" id="tour-add" style="margin-top:10px"><button class="btn" data-act="refModal">+ No encuentro el material (referencial)</button><button class="btn" data-act="impLista">⬆ Importar lista (Excel)</button>'+(iaDisponible()?'<label class="btn" style="display:inline-flex;gap:6px;cursor:pointer" title="Foto de una lista escrita a mano o impresa: la app la lee y busca cada material en el catálogo">📷 Lista desde foto<input type="file" accept="image/*" data-ch="impFotoDirecto" style="display:none"></label>':'')+'</div>':''}</div>
+   ${ed?'<div class="row" id="tour-add" style="margin-top:10px"><button class="btn" data-act="refModal">+ No encuentro el material (referencial)</button><button class="btn" data-act="impLista">⬆ Importar lista (Excel)</button>'+(iaDisponible()?'<label class="btn" style="display:inline-flex;gap:6px;cursor:pointer" title="Foto de una lista escrita a mano o impresa: marque el área de esta actividad y la app la lee">📷 Lista desde foto<input type="file" accept="image/*" data-ch="impFotoDirecto" style="display:none"></label>'+(S.ultimaFoto?'<button class="btn s" data-act="fotoAnteriorDirecto" title="Usar la misma foto para marcar el área de otra actividad">🖼 Foto anterior</button>':''):'')+'</div>':''}</div>
   </div><div>
   <div class="card" id="rev-card">${revHTML(s,ed)}</div>
   <div class="card"><h2>Acciones</h2><div class="grid" id="acc-card">${acciones(s,err)}</div></div>
@@ -952,8 +956,12 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
   <p class="small muted" style="margin-top:-8px">Suba un Excel con columnas <b>Código</b>, <b>Descripción</b>, <b>Cantidad</b> y opcionalmente <b>UM</b> y <b>Observaciones</b>, o copie las filas desde Excel y péguelas abajo. Los códigos se buscan en el catálogo; si no hay código se busca por descripción, y lo que no se encuentre se agrega como material referencial.</p>
   <div class="row"><input type="file" accept=".xlsx,.xls,.csv" data-ch="impListaFile" style="flex:1;min-width:200px"><button class="btn s" data-act="plantillaLista">⬇ Descargar plantilla</button></div>
   ${iaDisponible()?`<div class="card" style="margin:10px 0 0;background:#f4f8ff"><div class="row"><label class="btn" style="display:inline-flex;gap:6px;cursor:pointer;${M.fotoCargando?'opacity:.5;pointer-events:none':''}">📷 Leer lista desde foto<input type="file" accept="image/*" data-ch="impFoto" style="display:none"></label><span class="small muted">¿La lista está escrita a mano o impresa? Tómele una foto: la app la lee y busca cada material en el catálogo.</span></div>
-   ${M.fotoCargando?'<div class="empty">⏳ Leyendo la foto y buscando en el catálogo… (unos segundos)</div>':M.fotoErr?`<div class="bad" style="margin-top:8px">${esc(M.fotoErr)}</div>`:''}
-   ${M.img?`<img class="fotoprev${M.zoom?' grande':''}" src="${M.img}" data-act="fotoZoom" alt="Foto de la lista" style="margin-top:10px">`:''}</div>`:''}
+   ${!M.fotoSrc&&S.ultimaFoto&&!M.fotoCargando?`<div class="row" style="margin-top:8px"><button class="btn s" data-act="fotoAnterior">🖼 Usar la foto anterior (otra actividad del mismo papel)</button></div>`:''}
+   ${M.fotoCargando?'<div class="empty">⏳ Leyendo el área marcada y buscando en el catálogo… (unos segundos)</div>':M.fotoErr?`<div class="bad" style="margin-top:8px">${esc(M.fotoErr)}</div>`:''}
+   ${M.fotoSrc&&M.fotoPaso==='recorte'&&!M.fotoCargando?`<div style="margin-top:10px"><div class="small" style="margin-bottom:6px"><b>✂ Marque el área a leer:</b> arrastre sobre la foto (con el dedo o el mouse) para encerrar <b>solo los materiales de esta actividad</b>. Si el papel trae materiales de varias actividades, deje fuera los de las otras.</div>
+     <div id="recorte"><img src="${M.fotoSrc}" alt="Foto de la lista"><div class="sel${M.rect?'':' vacio'}" style="${M.rect?`left:${M.rect.x*100}%;top:${M.rect.y*100}%;width:${M.rect.w*100}%;height:${M.rect.h*100}%`:''}"></div></div>
+     <div class="row" style="margin-top:8px"><button class="btn p" data-act="fotoAnalizar" ${M.rect?'':'disabled'}>🔍 Leer el área marcada</button><button class="btn" data-act="fotoAnalizarTodo">Leer la foto completa</button><button class="btn s" data-act="fotoGirar" title="Girar 90°">↻ Girar</button>${M.rect?'<button class="btn s" data-act="fotoQuitarArea">Quitar selección</button>':''}</div></div>`:''}
+   ${M.img&&M.fotoPaso==='leida'?`<div class="row" style="margin-top:10px;align-items:flex-start"><img class="fotoprev${M.zoom?' grande':''}" src="${M.img}" data-act="fotoZoom" alt="Área leída" title="Área leída (toque para ampliar)"><button class="btn s" data-act="fotoOtraArea">✂ Marcar otra área</button></div>`:''}</div>`:''}
   <label style="margin-top:10px">O pegue aquí las filas copiadas de Excel</label><textarea rows="4" data-b="modal.txt" placeholder="31015349&#9;LIJA FIERRO NRO.40-3&#9;9&#10;&#9;PLANCHA AC.NAVAL 12.5MM&#9;1&#9;320 x 1500">${esc(M.txt||'')}</textarea>
   <div class="row" style="margin-top:6px"><button class="btn s" data-act="impListaPaste">Procesar texto pegado</button></div>
   ${R.some(r=>r.foto)?'<div class="warn" style="margin-top:12px">📷 <b>Lista leída de una foto:</b> compare cada línea con la foto, corrija el material si hace falta y marque ✔ las que estén correctas. <b>Solo se agregan las líneas comprobadas.</b></div>':''}
@@ -968,7 +976,7 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
 /* ============ Novedades de versión ============ */
 const APP_VERSION='1.12';
 const CHANGELOG=[
- {v:'1.12',f:'2026-11-24',t:'Solicitud desde una foto',items:['📷 En la solicitud, botón <b>Lista desde foto</b>: tome una foto de la lista de materiales (aunque esté escrita a mano) y la app la lee y busca cada material en el catálogo.','✔ Antes de agregarlos, <b>compare cada línea con la foto y márquela como comprobada</b>: solo se agregan las comprobadas. Lo que no esté en el catálogo puede ir como referencial.']},
+ {v:'1.12',f:'2026-11-24',t:'Solicitud desde una foto',items:['📷 En la solicitud, botón <b>Lista desde foto</b>: tome una foto de la lista de materiales (aunque esté escrita a mano) y la app la lee y busca cada material en el catálogo.','✂ <b>Marque el área</b> de la foto que corresponde a esta actividad (si el papel trae materiales de varias actividades). Con <b>🖼 Foto anterior</b> puede usar el mismo papel para la siguiente actividad.','✔ Antes de agregarlos, <b>compare cada línea con la foto y márquela como comprobada</b>: solo se agregan las comprobadas. Lo que no esté en el catálogo puede ir como referencial.']},
  {v:'1.11',f:'2026-11-23',t:'Materiales atendidos como BSU',items:['✔ <b>Reservada</b> es ahora el estado final del pedido (Diseño llega hasta la reserva): se quitó el paso "Atendida" y las que estaban atendidas se muestran como Reservadas.','🔎 Para Diseño: botón <b>♻ Cambio a BSU</b> en el Tablero para buscar el material por <b>reserva / posición</b> (ej. 42449700/99) y cambiarlo sin abrir la solicitud.','♻ Si almacén atiende un material reservado como <b>BSU</b> (bien de segundo uso), Diseño registra el nuevo código / posición con el botón <b>♻ BSU</b> de la solicitud.','🔔 La contrata recibe una alerta en la app y lo ve en <b>Pendientes → Atendidos como BSU</b>, con la reserva anterior tachada y la nueva para el retiro.']},
  {v:'1.10',f:'2026-11-21',t:'Accesos por proveedor, tutorial y bot de reservas',items:['🤖 <b>Bot de reservas</b>: deja automáticamente los Excel validados en la carpeta Solicitados, ejecuta el Código_reserva y registra la reserva y posición en la app. Su estado se ve en Gestión → Bot de reservas.','🔒 Cada empresa proveedora puede tener <b>acceso solo a ciertas embarcaciones y sistemas</b>: al crear una solicitud solo verá lo que le corresponde y no podrá enviar pedidos fuera de su acceso.','❓ Nuevo <b>Tutorial</b> guiado (botón arriba a la derecha) que enseña paso a paso a crear y enviar una lista. Los usuarios nuevos lo ven al ingresar por primera vez.']},
  {v:'1.9',f:'2026-11-20',t:'Carga diaria, envío flexible y alertas de retraso',items:['⬆ En Embarcaciones: <b>Cargar actividades y grafos (Excel)</b> con vista previa; solo se agrega lo nuevo y no se elimina nada.','📨 Puede <b>enviar la solicitud sin grafo ni Pos.</b> si no los conoce: el planificador los asignará.','✏ Mientras su solicitud <b>no haya sido revisada</b>, puede corregirla (agregar materiales o cambiar la embarcación).','✉ Los correos se abren directo en <b>Gmail</b>, <b>Outlook web</b> o la app de correo del equipo.','🏷 El estado <b>Enviada</b> ahora se llama <b>Solicitado</b>, y el indicador <b>Con reserva</b> cuenta las solicitudes reservadas y las ya atendidas.','⏰ Alerta de <b>actividades retrasadas</b> para planificadores; 📅 el periodo se asigna a cada embarcación.']},
@@ -1154,8 +1162,34 @@ ${lista}`;
 /* --- Leer una lista desde foto para una nueva solicitud (la contrata comprueba cada línea) --- */
 function puntajeMat(m,claves){const d=norm(m.desc);let s=0;claves.forEach(k=>{const kk=norm(k);if(kk.length>=2&&d.includes(kk))s+=Math.min(kk.length,6)});return s}
 function candidatosCat(claves,max=8){if(!claves.length)return [];return S.materiales.filter(m=>!m.ref&&m.codigo).map(m=>[puntajeMat(m,claves),m]).filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]).slice(0,max).map(x=>x[1])}
-async function impFotoLeer(file){const M=S.modal;M.fotoErr='';M.fotoCargando=true;render();
-  try{const {url,part}=await imgParte(file);M.img=url;render();
+/* --- Foto: selección del área a leer --- */
+function cargarImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('No se pudo abrir la imagen.'));i.src=src})}
+async function fotoFuente(file){if(!file||!/^image\//.test(file.type||'image/'))throw new Error('Elija una imagen (foto JPG o PNG).');
+  let bmp;try{bmp=await createImageBitmap(file)}catch(e){throw new Error('No se pudo abrir la imagen. Si es una foto HEIC de iPhone, envíela como JPG.')}
+  const k=Math.min(1,3000/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.9)}
+async function fotoRecorte(src,rect){const img=await cargarImg(src);const W=img.naturalWidth,H=img.naturalHeight;
+  const sx=rect?Math.round(rect.x*W):0,sy=rect?Math.round(rect.y*H):0,sw=rect?Math.max(1,Math.round(rect.w*W)):W,sh=rect?Math.max(1,Math.round(rect.h*H)):H;
+  const k=Math.min(1,1800/Math.max(sw,sh)),c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.round(sh*k);
+  c.getContext('2d').drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);const url=c.toDataURL('image/jpeg',0.88);
+  return {url,part:{inlineData:{data:url.split(',')[1],mimeType:'image/jpeg'}}}}
+async function fotoGirarSrc(src){const img=await cargarImg(src),c=document.createElement('canvas');c.width=img.naturalHeight;c.height=img.naturalWidth;
+  const g=c.getContext('2d');g.translate(c.width,0);g.rotate(Math.PI/2);g.drawImage(img,0,0);return c.toDataURL('image/jpeg',0.9)}
+async function impFotoLeer(file){const M=S.modal;M.fotoErr='';M.rect=null;M.img='';
+  try{M.fotoSrc=await fotoFuente(file);S.ultimaFoto=M.fotoSrc;M.fotoPaso='recorte'}catch(e){M.fotoErr=String(e.message||e)}
+  if(S.modal===M)render()}
+let _rc=null;
+const _cl=v=>Math.max(0,Math.min(1,v));
+function _dibRect(a,b,c,d){const el=document.querySelector('#recorte .sel');if(!el)return;const x=Math.min(a,c),y=Math.min(b,d);
+  el.classList.remove('vacio');el.style.left=x*100+'%';el.style.top=y*100+'%';el.style.width=Math.abs(c-a)*100+'%';el.style.height=Math.abs(d-b)*100+'%'}
+document.addEventListener('pointerdown',ev=>{const box=ev.target.closest&&ev.target.closest('#recorte');if(!box||!S.modal)return;ev.preventDefault();
+  const r=box.getBoundingClientRect();const x=_cl((ev.clientX-r.left)/r.width),y=_cl((ev.clientY-r.top)/r.height);_rc={r,x0:x,y0:y,x1:x,y1:y};
+  try{box.setPointerCapture(ev.pointerId)}catch(e){}_dibRect(x,y,x,y)});
+document.addEventListener('pointermove',ev=>{if(!_rc)return;ev.preventDefault();const r=_rc.r;_rc.x1=_cl((ev.clientX-r.left)/r.width);_rc.y1=_cl((ev.clientY-r.top)/r.height);_dibRect(_rc.x0,_rc.y0,_rc.x1,_rc.y1)},{passive:false});
+document.addEventListener('pointerup',()=>{if(!_rc)return;const {x0,y0,x1,y1}=_rc;_rc=null;if(!S.modal)return;
+  const R={x:Math.min(x0,x1),y:Math.min(y0,y1),w:Math.abs(x1-x0),h:Math.abs(y1-y0)};S.modal.rect=(R.w>0.03&&R.h>0.03)?R:null;render()});
+async function impFotoAnalizar(todo){const M=S.modal;if(!M||!M.fotoSrc)return;M.fotoErr='';M.fotoCargando=true;render();
+  try{const {url,part}=await fotoRecorte(M.fotoSrc,todo?null:M.rect);M.img=url;M.fotoPaso='leida';
     const p1=`Eres asistente de almacén de un astillero en Perú. La imagen es una lista de materiales (a menudo escrita a mano, en español). Lee cada línea que sea un MATERIAL (ignora títulos, embarcación, actividad, membretes).
 ${IA_EQUIV}
 Para cada material da palabras clave para buscarlo en un catálogo SAP escrito en MAYÚSCULAS y abreviado (ej. "SOLDADURA","6011","4.00MM" · "BRIDA","SLIP","3\\"" · "TUBO","SCH40","6\\"").
@@ -1171,7 +1205,7 @@ ${L.map((l,k)=>`LÍNEA ${k+1}: ${l.cantidad||''} ${l.unidad||''} ${l.texto||l.de
     M.rows=L.map((l,k)=>{const e=elec[k+1]||{};const ok=cands[k].some(m=>String(m.codigo)===String(e.codigo));const alts=[...new Set([e.codigo,...(e.alternativas||[]),...cands[k].map(m=>m.codigo)].map(String).filter(c=>c&&c!=='null'&&cands[k].some(m=>String(m.codigo)===c)))];
       const r=emparejar({codigo:ok?String(e.codigo):'',desc:String(l.descripcion||l.texto||'').toUpperCase(),cantidad:String(l.cantidad||'').replace(',','.'),um:'',obs:''});
       return {...r,foto:true,texto:l.texto||l.descripcion,fotoCant:`${l.cantidad||''} ${l.unidad||''}`.trim(),alts,confianza:ok?(e.confianza||'media'):'baja',usar:false}})}
-  catch(e){M.fotoErr=iaError(e)}
+  catch(e){M.fotoErr=iaError(e);M.fotoPaso='recorte'}
   M.fotoCargando=false;if(S.modal===M)render()}
 
 /* ============ BSU (bien de segundo uso) ============ */
@@ -1308,7 +1342,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 00:20';
+const BUILD='2026-11-24 11:20';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1786,6 +1820,13 @@ const CH={
   impUsar(el){S.modal.rows[+el.dataset.i].usar=el.checked;render()},
   impFoto(el){const f=el.files[0];el.value='';if(f)impFotoLeer(f)},
   impFotoDirecto(el){const f=el.files[0];el.value='';if(!f)return;S.modal={t:'impLista',wide:true,rows:[],txt:''};impFotoLeer(f)},
+  fotoAnalizar(){impFotoAnalizar(false)},
+  fotoAnteriorDirecto(){S.modal={t:'impLista',wide:true,rows:[],txt:''};ACT.fotoAnterior()},
+  fotoAnalizarTodo(){impFotoAnalizar(true)},
+  fotoQuitarArea(){S.modal.rect=null;render()},
+  fotoOtraArea(){const M=S.modal;M.fotoPaso='recorte';M.rect=null;M.img='';M.rows=(M.rows||[]).filter(r=>!r.foto);render()},
+  fotoAnterior(){const M=S.modal;if(!S.ultimaFoto)return;M.fotoSrc=S.ultimaFoto;M.fotoPaso='recorte';M.rect=null;M.img='';M.fotoErr='';render()},
+  async fotoGirar(){const M=S.modal;try{M.fotoSrc=await fotoGirarSrc(M.fotoSrc);S.ultimaFoto=M.fotoSrc;M.rect=null;render()}catch(e){toast('No se pudo girar la imagen','bad')}},
   impAlt(el){const M=S.modal,i=+el.dataset.i,r=M.rows[i];const n=emparejar({codigo:el.value,desc:r.desc,cantidad:r.cantidad,um:'',obs:''});
     M.rows[i]={...n,foto:true,texto:r.texto,fotoCant:r.fotoCant,alts:r.alts,confianza:'alta',usar:false};if(!el.value){M.rows[i].m=null;M.rows[i].tipo='ref'}render()},
   fotoResFile(el){const f=el.files[0];el.value='';if(f)fotoResLeer(f)},
@@ -1949,6 +1990,7 @@ async function onAuth(u){if(S.bootstrapping)return;stopSubs();resetData();
 
 function syncDot(){const st=S.offline?['#e5534b','Sin conexión']:(S.lento||S.pend)?['#e9a23b',S.lento?'Cambios sin enviar':'Guardando…']:['#57c27a','En línea'];
   return `<span title="${st[1]}${S.ultSync?' · último guardado '+S.ultSync.toLocaleTimeString('es-PE'):''}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;opacity:.95"><i style="width:9px;height:9px;border-radius:50%;background:${st[0]};box-shadow:0 0 0 3px rgba(255,255,255,.15)"></i><span class="nm">${st[1]}</span></span>`}
+['fotoAnalizar','fotoAnteriorDirecto','fotoAnalizarTodo','fotoQuitarArea','fotoOtraArea','fotoAnterior','fotoGirar'].forEach(k=>{ACT[k]=CH[k]});
 const ACT0={...ACT};
 Object.assign(ACT,{
   async logout(){if(!S.fb)return ACT0.logout();if(S.dirty&&S.draft&&editable(S.draft)&&tieneContenido(S.draft))saveDraft(null,true).catch(()=>{});
