@@ -1,5 +1,7 @@
 # Pedidos de Material — Astillero TASA · Jefatura de Diseño
 
+> App publicada en **https://diseno-tasa.github.io/pedidos-tasa/** (cuenta GitHub `diseno-tasa`).
+
 Aplicación web (computadora y celular) para gestionar los pedidos de material de proveedores terceros por embarcación: grafo, Pos., reservas, plantillas, alertas y el Excel de carga.
 
 Funciona **sin cuenta de Claude**:
