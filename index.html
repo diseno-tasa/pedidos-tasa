@@ -957,7 +957,7 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
   <div class="row"><input type="file" accept=".xlsx,.xls,.csv" data-ch="impListaFile" style="flex:1;min-width:200px"><button class="btn s" data-act="plantillaLista">⬇ Descargar plantilla</button></div>
   ${iaDisponible()?`<div class="card" style="margin:10px 0 0;background:#f4f8ff"><div class="row"><label class="btn" style="display:inline-flex;gap:6px;cursor:pointer;${M.fotoCargando?'opacity:.5;pointer-events:none':''}">📷 Leer lista desde foto<input type="file" accept="image/*" data-ch="impFoto" style="display:none"></label><span class="small muted">¿La lista está escrita a mano o impresa? Tómele una foto: la app la lee y busca cada material en el catálogo.</span></div>
    ${!M.fotoSrc&&S.ultimaFoto&&!M.fotoCargando?`<div class="row" style="margin-top:8px"><button class="btn s" data-act="fotoAnterior">🖼 Usar la foto anterior (otra actividad del mismo papel)</button></div>`:''}
-   ${M.fotoCargando?'<div class="empty">⏳ Leyendo el área marcada y buscando en el catálogo… (unos segundos)</div>':M.fotoErr?`<div class="bad" style="margin-top:8px">${esc(M.fotoErr)}</div>`:''}
+   ${M.fotoCargando?'<div class="empty">⏳ '+(M.fotoMsg?esc(M.fotoMsg):'Leyendo el área marcada y buscando en el catálogo… (unos segundos)')+'</div>':M.fotoErr?`<div class="bad" style="margin-top:8px">${esc(M.fotoErr)}</div>`:''}
    ${M.fotoSrc&&M.fotoPaso==='recorte'&&!M.fotoCargando?`<div style="margin-top:10px"><div class="small" style="margin-bottom:6px"><b>✂ Marque el área a leer:</b> arrastre sobre la foto (con el dedo o el mouse) para encerrar <b>solo los materiales de esta actividad</b>. Si el papel trae materiales de varias actividades, deje fuera los de las otras.</div>
      <div id="recorte"><img src="${M.fotoSrc}" alt="Foto de la lista"><div class="sel${M.rect?'':' vacio'}" style="${M.rect?`left:${M.rect.x*100}%;top:${M.rect.y*100}%;width:${M.rect.w*100}%;height:${M.rect.h*100}%`:''}"></div></div>
      <div class="row" style="margin-top:8px"><button class="btn p" data-act="fotoAnalizar" ${M.rect?'':'disabled'}>🔍 Leer el área marcada</button><button class="btn" data-act="fotoAnalizarTodo">Leer la foto completa</button><button class="btn s" data-act="fotoGirar" title="Girar 90°">↻ Girar</button>${M.rect?'<button class="btn s" data-act="fotoQuitarArea">Quitar selección</button>':''}</div></div>`:''}
@@ -1088,26 +1088,36 @@ function liberados(){const out=[];visibles(false).forEach(s=>(s.items||[]).forEa
 function libVisto(){try{return localStorage.getItem('pm_lib_'+S.cuenta)||''}catch(e){return ''}}
 function libNuevos(){const v=libVisto();return liberados().filter(x=>String(x.it.liberadoEn)>v)}
 /* ============ Lectura de listas por foto (IA · Firebase AI Logic / Gemini) ============ */
-const IA_V='12.0.0';const IA_MODELOS=['gemini-3.8-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite'];let _ia=null;
+const IA_V='12.0.0';const IA_MODELOS=['gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.5-flash','gemini-3.1-flash-lite'];let _ia=null;
 const iaDisponible=()=>!!S.fb&&!!window.FIREBASE_CONFIG;
 async function iaModelo(){if(!iaDisponible())throw new Error('La lectura de fotos solo está disponible en la versión con Firebase.');
   if(!_ia){const A=await import(`https://www.gstatic.com/firebasejs/${IA_V}/firebase-app.js`);const B=await import(`https://www.gstatic.com/firebasejs/${IA_V}/firebase-ai.js`);
     const app=A.getApps().find(a=>a.name==='ia')||A.initializeApp(window.FIREBASE_CONFIG,'ia');_ia={B,ai:B.getAI(app,{backend:new B.GoogleAIBackend()})}}
   return _ia}
 function jsonSuelto(t){t=String(t||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();try{return JSON.parse(t)}catch(e){const i=t.indexOf('{'),j=t.lastIndexOf('}');if(i>=0&&j>i)return JSON.parse(t.slice(i,j+1));throw new Error('La IA no devolvió una respuesta legible.')}}
-async function iaJSON(partes){const {B,ai}=await iaModelo();const pref=String((S.ajustes||{}).modeloIA||'').trim();const L=[...new Set([pref,...IA_MODELOS].filter(Boolean))];let ult;
-  for(const mod of L){try{const m=B.getGenerativeModel(ai,{model:mod,generationConfig:{responseMimeType:'application/json',temperature:0.1}});
-      const r=await m.generateContent(partes);return jsonSuelto(r.response.text())}
-    catch(e){ult=e;console.warn('[IA] modelo',mod,'→',e);if(/PERMISSION_DENIED|API_KEY_INVALID|API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used/i.test(String(e&&e.message||e)))break}}
-  throw ult}
+const IA_SATURADO=/high demand|overloaded|UNAVAILABLE|\[50[0-4]|\b50[0-4]\b|try again later|internal error/i;
+const IA_NOEXISTE=/not.?found|\[404|is not supported|unsupported model/i;
+async function iaJSON(partes,onIntento){const {B,ai}=await iaModelo();const pref=String((S.ajustes||{}).modeloIA||'').trim();const L=[...new Set([pref,...IA_MODELOS].filter(Boolean))];
+  const errs=[];let vivos=[...L];
+  for(let ronda=0;ronda<3&&vivos.length;ronda++){
+    if(ronda){if(onIntento)onIntento(ronda);await new Promise(r=>setTimeout(r,ronda*4000))}
+    const sig=[];
+    for(const mod of vivos){try{const m=B.getGenerativeModel(ai,{model:mod,generationConfig:{responseMimeType:'application/json',temperature:0.1}});
+        const r=await m.generateContent(partes);return jsonSuelto(r.response.text())}
+      catch(e){const t=String(e&&e.message||e);console.warn('[IA] modelo',mod,'→',e);errs.push(mod+': '+t.replace(/^.*?generateContent:\s*/,'').slice(0,160));
+        if(/PERMISSION_DENIED|API_KEY_INVALID|API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used|App Check/i.test(t)){const x=new Error(t);x.lista=errs;throw x}
+        if(IA_SATURADO.test(t)||/quota|429|RESOURCE_EXHAUSTED/i.test(t))sig.push(mod)}}
+    vivos=sig}
+  const x=new Error(errs[errs.length-1]||'Sin respuesta');x.lista=errs;throw x}
 function iaError(e){const m=String(e&&e.message||e);console.error('[IA]',e);let txt;
   if(/API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used|is disabled/i.test(m))txt='La API de AI Logic no está activada en el proyecto de Firebase.';
   else if(/API_KEY_INVALID|API key not valid|blocked|referer|PERMISSION_DENIED/i.test(m))txt='La clave de la app no tiene permiso para usar AI Logic (revise las restricciones de la clave en Google Cloud).';
+  else if(IA_SATURADO.test(m)&&!/quota|429|RESOURCE_EXHAUSTED/i.test(m))txt='Los servidores de Google están saturados en este momento (alta demanda). La app reintentó varias veces; espere 1 o 2 minutos y vuelva a tocar «Leer».';
   else if(/quota|429|RESOURCE_EXHAUSTED/i.test(m))txt='Se alcanzó el límite gratuito de lecturas por el momento. Intente de nuevo en unos minutos.';
   else if(/Failed to fetch|NetworkError|dynamically imported module|Importing a module/i.test(m))txt='No se pudo descargar el componente de lectura (revise la red o el bloqueo del navegador).';
   else if(/not.?found|404|is not supported|unsupported/i.test(m))txt='El modelo de IA configurado no está disponible.';
   else txt='No se pudo leer la foto.';
-  return txt+' Detalle técnico: '+m.slice(0,400)}
+  return txt+' Detalle técnico: '+(e&&e.lista&&e.lista.length?e.lista.join(' | '):m).slice(0,600)}
 async function imgParte(file){if(!file||!/^image\//.test(file.type||'image/'))throw new Error('Elija una imagen (foto JPG o PNG).');
   let bmp;try{bmp=await createImageBitmap(file)}catch(e){throw new Error('No se pudo abrir la imagen. Si es una foto HEIC de iPhone, envíela como JPG.')}
   const k=Math.min(1,1800/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
@@ -1194,18 +1204,18 @@ async function impFotoAnalizar(todo){const M=S.modal;if(!M||!M.fotoSrc)return;M.
 ${IA_EQUIV}
 Para cada material da palabras clave para buscarlo en un catálogo SAP escrito en MAYÚSCULAS y abreviado (ej. "SOLDADURA","6011","4.00MM" · "BRIDA","SLIP","3\\"" · "TUBO","SCH40","6\\"").
 Responde SOLO con JSON: {"lineas":[{"texto":"línea tal como está escrita","cantidad":"número","unidad":"unidad leída o vacío","descripcion":"cómo la interpretas","claves":["…"]}]}`;
-    const r1=await iaJSON([p1,part]);const L=(r1.lineas||[]).filter(l=>l&&(l.texto||l.descripcion));
+    M.fotoMsg='';const r1=await iaJSON([p1,part],n=>{M.fotoMsg='Google está con alta demanda; reintentando ('+n+' de 2)…';if(S.modal===M)render()});M.fotoMsg='';const L=(r1.lineas||[]).filter(l=>l&&(l.texto||l.descripcion));
     if(!L.length)throw new Error('No se reconocieron materiales en la foto. Intente con una foto más nítida y de frente.');
     const cands=L.map(l=>candidatosCat([...(l.claves||[]),...norm2(l.descripcion||'')]));
     let elec={};if(cands.some(c=>c.length)){
       const p2=`Para cada línea elige el código del catálogo que corresponde (mismo tipo, medida y norma) o null si ninguno corresponde. ${IA_EQUIV}
 Responde SOLO con JSON: {"elecciones":[{"linea":número,"codigo":"código o null","alternativas":["otros códigos posibles"],"confianza":"alta|media|baja"}]}
 ${L.map((l,k)=>`LÍNEA ${k+1}: ${l.cantidad||''} ${l.unidad||''} ${l.texto||l.descripcion} (interpretación: ${l.descripcion||''})\n${cands[k].map(m=>`  - ${m.codigo} | ${m.desc} | ${m.um}`).join('\n')||'  (sin candidatos)'}`).join('\n')}`;
-      const r2=await iaJSON([p2]);(r2.elecciones||[]).forEach(e=>{elec[+e.linea]=e})}
+      const r2=await iaJSON([p2],n=>{M.fotoMsg='Buscando en el catálogo; reintentando ('+n+' de 2)…';if(S.modal===M)render()});M.fotoMsg='';(r2.elecciones||[]).forEach(e=>{elec[+e.linea]=e})}
     M.rows=L.map((l,k)=>{const e=elec[k+1]||{};const ok=cands[k].some(m=>String(m.codigo)===String(e.codigo));const alts=[...new Set([e.codigo,...(e.alternativas||[]),...cands[k].map(m=>m.codigo)].map(String).filter(c=>c&&c!=='null'&&cands[k].some(m=>String(m.codigo)===c)))];
       const r=emparejar({codigo:ok?String(e.codigo):'',desc:String(l.descripcion||l.texto||'').toUpperCase(),cantidad:String(l.cantidad||'').replace(',','.'),um:'',obs:''});
       return {...r,foto:true,texto:l.texto||l.descripcion,fotoCant:`${l.cantidad||''} ${l.unidad||''}`.trim(),alts,confianza:ok?(e.confianza||'media'):'baja',usar:false}})}
-  catch(e){M.fotoErr=iaError(e);M.fotoPaso='recorte'}
+  catch(e){M.fotoMsg='';M.fotoErr=iaError(e);M.fotoPaso='recorte'}
   M.fotoCargando=false;if(S.modal===M)render()}
 
 /* ============ BSU (bien de segundo uso) ============ */
@@ -1342,7 +1352,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 11:20';
+const BUILD='2026-11-24 11:40';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
