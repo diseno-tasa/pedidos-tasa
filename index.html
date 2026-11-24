@@ -246,7 +246,8 @@ html,body{max-width:100%;overflow-x:hidden}
   .toast{bottom:92px;font-size:13px}
   nav.bottom button{min-width:62px;padding:6px 4px}
 }
-@media (max-width:420px){.kpis{gap:8px}.bars .b{grid-template-columns:84px 1fr 24px;font-size:11px}}
+.bars .b.u1{grid-template-columns:110px 1fr 130px}.bars .b.u2{grid-template-columns:64px 1fr 130px}.bars .b.u3{grid-template-columns:86px 1fr 30px}.bars .b.u4{grid-template-columns:86px 1fr 48px}
+@media (max-width:420px){.bars .b.u1{grid-template-columns:84px 1fr 110px}.kpis{gap:8px}.bars .b{grid-template-columns:84px 1fr 24px;font-size:11px}}
 .top .bs{display:none}
 @media (max-width:860px){.top .bl{display:none}.top .bs{display:inline}
   nav.bottom{overflow-x:visible}nav.bottom button{flex:1 1 0;min-width:0;padding:6px 1px;font-size:9.5px}nav.bottom svg{width:20px;height:20px}
@@ -727,10 +728,70 @@ function vGestion(){const adm=can('usuarios'),T=[['cuenta','Mi cuenta']];
   if(adm)T.push(['usuarios','Usuarios'],['empresas','Empresas'],['roles','Roles'],['periodos','Periodos'],['cargos','Cargos'],['correos','Correos'],['unidades','Unidades']);
   if(can('validar'))T.push(['alertas','Alertas'+(S.notifs.filter(n=>n.estado!=='enviada').length?' ('+S.notifs.filter(n=>n.estado!=='enviada').length+')':'')]);
   if(can('validar')&&S.fb)T.push(['bot','🤖 Bot de reservas']);
+  if(adm)T.push(['uso','📊 Uso de datos']);
   if(can('eliminar'))T.push(['datos','Eliminar datos']);
   if(!T.some(t=>t[0]===S.gTab))S.gTab='cuenta';
-  const body={cuenta:gCuenta,usuarios:gUsuarios,alertas:gAlertas,unidades:gUnidades,correos:gCorreos,empresas:gEmpresas,roles:gRoles,periodos:gPeriodos,cargos:gCargos,datos:gDatos,bot:gBot}[S.gTab]();
+  const body={cuenta:gCuenta,usuarios:gUsuarios,alertas:gAlertas,unidades:gUnidades,correos:gCorreos,empresas:gEmpresas,roles:gRoles,periodos:gPeriodos,cargos:gCargos,datos:gDatos,bot:gBot,uso:gUso}[S.gTab]();
   return `<div class="head"><h1>Gestión</h1></div><div class="tabs" style="overflow-x:auto">${T.map(([k,l])=>`<button class="${S.gTab===k?'on':''}" data-act="gTab" data-t="${k}">${l}</button>`).join('')}</div>${body}`}
+
+/* ============ Uso de datos (solo administrador) ============ */
+const RAW={};
+const usoMes=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+function usoInc(campo,extra){try{if(!S.fb||!window.firebase||!FB.raw)return;const d=new Date(),dia=String(d.getDate()).padStart(2,'0'),inc=firebase.firestore.FieldValue.increment(1);
+  const o={[campo]:{[dia]:inc}};if(extra)o[extra[0]]={[extra[1]]:inc};FB.raw.doc('uso/'+usoMes(d)).set(o,{merge:true}).catch(()=>{})}catch(e){}}
+// Tamaño aproximado según las reglas de Firestore (nombre del documento + campos + 32 bytes)
+const _te=new TextEncoder();const _sb=t=>_te.encode(String(t)).length+1;
+function fsVal(v){if(v==null)return 1;if(typeof v==='string')return _sb(v);if(typeof v==='number')return 8;if(typeof v==='boolean')return 1;
+  if(v instanceof Date||(v&&typeof v.toDate==='function'))return 8;if(Array.isArray(v))return v.reduce((a,x)=>a+fsVal(x),0);
+  if(typeof v==='object'){let n=0;for(const k in v)n+=_sb(k)+fsVal(v[k]);return n}return 8}
+const fsDoc=(col,id,data)=>{const {id:_x,...d}=data||{};return _sb(col)+_sb(id)+16+fsVal(d)+32};
+const MB=1024*1024,LIM_GB=1024*MB,LIM_DOC=MB;
+const fmtB=b=>b>=MB?(b/MB).toFixed(b>=100*MB?0:2)+' MB':b>=1024?(b/1024).toFixed(1)+' KB':b+' B';
+function usoColecciones(){const out=[];
+  const add=(name,label,docs)=>{let tot=0,max=0,maxId='';docs.forEach(([id,d])=>{const b=fsDoc(name,id,d);tot+=b;if(b>max){max=b;maxId=id}});out.push({name,label,n:docs.length,tot,max,maxId})};
+  const etiq={catalogo:'Catálogo de materiales',materiales:'Materiales referenciales',embarcaciones:'Embarcaciones',empresas:'Empresas',plantillasSol:'Plantillas de solicitud',notificaciones:'Alertas / correos',mejoras:'Mejoras (con fotos)',cuentas:'Usuarios',rolesCfg:'Roles',claves:'Claves'};
+  Object.keys(RAW).forEach(k=>add(k,etiq[k]||k,RAW[k].docs.map(d=>[d.id,d.data()])));
+  if(!RAW.catalogo&&S.materiales)add('catalogo',etiq.catalogo,[['todo',{items:S.materiales}]]);
+  add('solicitudes','Solicitudes',(S.solicitudes||[]).map(x=>[x.id,x]));
+  const cfg=[['ajustes',S.ajustes],['plantillas',{list:S.plantillas}],['periodos',{list:S.periodos}],['cargos',{list:S.cargos}],['unidades',{list:S.unidades}],['diseno',{list:S.diseno}]].filter(x=>x[1]);
+  add('config','Configuración',cfg);if(S.bot)add('botEstado','Estado del bot',[['estado',S.bot]]);
+  return out.sort((a,b)=>b.tot-a.tot)}
+async function usoCargar(){if(!S.fb){S.uso={meses:{}};render();return}S.usoCargando=true;render();
+  const d=new Date(),m0=usoMes(d),m1=usoMes(new Date(d.getFullYear(),d.getMonth()-1,1)),M={};
+  try{for(const m of [m1,m0]){const sn=await FB.raw.doc('uso/'+m).get();M[m]=sn.exists?sn.data():{}}S.uso={meses:M,err:''}}
+  catch(e){S.uso={meses:{},err:e&&e.code==='permission-denied'?'Falta publicar las reglas nuevas de Firestore (colección «uso»).':String(e&&e.message||e)}}
+  S.usoCargando=false;render()}
+function gUso(){if(!S.uso&&!S.usoCargando)setTimeout(usoCargar,0);
+  const C=usoColecciones(),datos=C.reduce((a,c)=>a+c.tot,0),est=datos*2,pct=Math.min(100,est/LIM_GB*100),nDocs=C.reduce((a,c)=>a+c.n,0);
+  const col=p=>p>=80?'#c0392b':p>=50?'#d68910':'var(--navy2)';
+  const bar=(lab,p,txt)=>`<div class="b u1"><span>${lab}</span><span class="t"><i style="width:${Math.max(p,p>0?1:0).toFixed(1)}%;background:${col(p)}"></i></span><span class="mono" style="text-align:right">${txt}</span></div>`;
+  // crecimiento por mes (solicitudes)
+  const porMes={};(S.solicitudes||[]).forEach(x=>{const f=parseISO(x.fechaSolicitud||x.creado||'');if(!f)return;const k=usoMes(f);(porMes[k]||(porMes[k]={n:0,b:0}));porMes[k].n++;porMes[k].b+=fsDoc('solicitudes',x.id,x)});
+  const meses=Object.keys(porMes).sort().slice(-6),maxB=Math.max(1,...meses.map(k=>porMes[k].b));
+  const prom=meses.length?meses.reduce((a,k)=>a+porMes[k].b,0)/meses.length*2:0,resta=LIM_GB-est,anios=prom>0?resta/prom/12:null;
+  // actividad
+  const U=S.uso||{meses:{}},hoy=new Date(),dias=[];for(let i=13;i>=0;i--){const d=new Date(hoy);d.setDate(hoy.getDate()-i);const m=U.meses[usoMes(d)]||{},dd=String(d.getDate()).padStart(2,'0');
+    dias.push({lab:d.toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'2-digit'}),ap:(m.aperturas||{})[dd]||0,ia:(m.ia||{})[dd]||0,iaF:(m.iaFallos||{})[dd]||0})}
+  const mAct=U.meses[usoMes(hoy)]||{},sum=o=>Object.values(o||{}).reduce((a,v)=>a+(+v||0),0);
+  const apHoy=dias[13].ap,lectHoy=apHoy*nDocs,maxAp=Math.max(1,...dias.map(x=>x.ap)),maxIa=Math.max(1,...dias.map(x=>x.ia));
+  const proj='pedidos-tasa',cons=`https://console.firebase.google.com/project/${proj}`;
+  return `<div class="card"><h2>💾 Almacenamiento (Firestore)</h2>
+    <p class="small muted" style="margin-top:-6px">Plan gratuito: <b>1 GB</b> de base de datos. Se calcula con los datos ya cargados en esta pantalla (no gasta lecturas). Firestore guarda además índices, por eso se usa una estimación conservadora de <b>×2</b>.</p>
+    <div class="bars">${bar('Uso estimado',pct,fmtB(est)+' / 1 GB')}</div>
+    <div class="small" style="margin:6px 0 10px">Datos: <b>${fmtB(datos)}</b> en <b>${nDocs.toLocaleString('es-PE')}</b> documentos · Libre aprox.: <b>${fmtB(Math.max(0,resta))}</b>${anios!=null?` · Al ritmo de los últimos meses alcanza para <b>${anios>50?'más de 50':anios.toFixed(anios<2?1:0)} años</b>`:''}</div>
+    <div style="overflow-x:auto"><table class="rs"><thead><tr><th>Colección</th><th style="text-align:right">Docs</th><th style="text-align:right">Tamaño</th><th style="text-align:right">% del total</th><th>Documento más pesado (límite 1 MB c/u)</th></tr></thead><tbody>
+    ${C.filter(c=>c.n).map(c=>{const pd=c.max/LIM_DOC*100;return `<tr><td data-l="Colección">${esc(c.label)}</td><td data-l="Docs" style="text-align:right">${c.n.toLocaleString('es-PE')}</td><td data-l="Tamaño" style="text-align:right" class="mono">${fmtB(c.tot)}</td><td data-l="% del total" style="text-align:right">${datos?(c.tot/datos*100).toFixed(1):0}%</td><td data-l="Más pesado" class="small">${c.n?`<span class="mono">${esc(c.maxId)}</span> · ${fmtB(c.max)} <b style="color:${col(pd)}">(${pd.toFixed(0)}%)</b>${pd>=80?' ⚠ cerca del límite':''}`:'—'}</td></tr>`}).join('')}
+    </tbody></table></div></div>
+  <div class="card"><h2>📈 Crecimiento (solicitudes por mes)</h2>${meses.length?`<div class="bars">${meses.map(k=>`<div class="b u2"><span>${k}</span><span class="t"><i style="width:${(porMes[k].b/maxB*100).toFixed(1)}%"></i></span><span class="mono" style="text-align:right">${porMes[k].n} sol. · ${fmtB(porMes[k].b)}</span></div>`).join('')}</div>`:'<div class="empty">Aún no hay solicitudes.</div>'}</div>
+  <div class="card"><h2>📊 Actividad diaria (últimos 14 días)</h2>
+    ${S.usoCargando?'<div class="empty">⏳ Cargando…</div>':U.err?`<div class="bad">${esc(U.err)}</div>`:!S.fb?'<div class="empty">Disponible solo en la versión con Firebase.</div>':''}
+    <p class="small muted" style="margin-top:-6px">Plan gratuito de Firestore: <b>50 000 lecturas</b> y <b>20 000 escrituras</b> por día. Cada vez que alguien abre la app se leen hasta <b>${nDocs.toLocaleString('es-PE')}</b> documentos (las contratas, menos).</p>
+    <div class="row" style="gap:18px;margin-bottom:8px"><div>Aperturas hoy: <b>${apHoy}</b></div><div>Lecturas estimadas hoy: <b>≤ ${lectHoy.toLocaleString('es-PE')}</b> (${(lectHoy/50000*100).toFixed(0)}% del límite)</div><div>Consultas a la IA este mes: <b>${sum(mAct.ia)}</b>${sum(mAct.iaFallos)?` · fallidas: <b>${sum(mAct.iaFallos)}</b>`:''}</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px"><div><div class="small"><b>Aperturas de la app</b></div><div class="bars">${dias.map(x=>`<div class="b u3"><span>${x.lab}</span><span class="t"><i style="width:${x.ap/maxAp*100}%"></i></span><span class="mono" style="text-align:right">${x.ap}</span></div>`).join('')}</div></div>
+    <div><div class="small"><b>Consultas a la IA (lectura de fotos)</b></div><div class="bars">${dias.map(x=>`<div class="b u4"><span>${x.lab}</span><span class="t"><i style="width:${x.ia/maxIa*100}%;background:#7CA22B"></i></span><span class="mono" style="text-align:right">${x.ia}${x.iaF?`<span style="color:#c0392b"> ·${x.iaF}✗</span>`:''}</span></div>`).join('')}</div>
+    ${Object.keys(mAct.iaModelo||{}).length?`<div class="small muted">Este mes por modelo: ${Object.entries(mAct.iaModelo).map(([k,v])=>esc(k)+': '+v).join(' · ')}</div>`:''}</div></div>
+    <p class="small muted" style="margin-top:8px">Cada lectura de foto usa 1 o 2 consultas a Gemini. Los conteos empiezan desde que se instaló este panel.</p>
+    <div class="row"><button class="btn s" data-act="usoRefrescar">↻ Actualizar</button><a class="btn s" style="text-decoration:none" target="_blank" rel="noopener" href="${cons}/firestore/databases/-default-/usage">Uso real en Firestore ↗</a><a class="btn s" style="text-decoration:none" target="_blank" rel="noopener" href="${cons}/ailogic">Uso de AI Logic ↗</a><a class="btn s" style="text-decoration:none" target="_blank" rel="noopener" href="${cons}/usage">Uso y facturación ↗</a></div></div>`}
 /* ============ Bot de reservas ============ */
 function haceTxt(iso){const d=parseISO(iso);if(!d)return '—';const m=Math.round((Date.now()-d)/60000);if(m<1)return 'hace instantes';if(m<60)return 'hace '+m+' min';const h=Math.round(m/60);if(h<48)return 'hace '+h+' h';return 'hace '+Math.round(h/24)+' días'}
 function parseISO(s){if(!s)return null;const d=new Date(s);return isNaN(d)?null:d}
@@ -1103,12 +1164,12 @@ async function iaJSON(partes,onIntento){const {B,ai}=await iaModelo();const pref
     if(ronda){if(onIntento)onIntento(ronda);await new Promise(r=>setTimeout(r,ronda*4000))}
     const sig=[];
     for(const mod of vivos){try{const m=B.getGenerativeModel(ai,{model:mod,generationConfig:{responseMimeType:'application/json',temperature:0.1}});
-        const r=await m.generateContent(partes);return jsonSuelto(r.response.text())}
+        const r=await m.generateContent(partes);usoInc('ia',['iaModelo',mod]);return jsonSuelto(r.response.text())}
       catch(e){const t=String(e&&e.message||e);console.warn('[IA] modelo',mod,'→',e);errs.push(mod+': '+t.replace(/^.*?generateContent:\s*/,'').slice(0,160));
         if(/PERMISSION_DENIED|API_KEY_INVALID|API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used|App Check/i.test(t)){const x=new Error(t);x.lista=errs;throw x}
         if(IA_SATURADO.test(t)||/quota|429|RESOURCE_EXHAUSTED/i.test(t))sig.push(mod)}}
     vivos=sig}
-  const x=new Error(errs[errs.length-1]||'Sin respuesta');x.lista=errs;throw x}
+  usoInc('iaFallos');const x=new Error(errs[errs.length-1]||'Sin respuesta');x.lista=errs;throw x}
 function iaError(e){const m=String(e&&e.message||e);console.error('[IA]',e);let txt;
   if(/API_NOT_ACTIVATED|SERVICE_DISABLED|has not been used|is disabled/i.test(m))txt='La API de AI Logic no está activada en el proyecto de Firebase.';
   else if(/API_KEY_INVALID|API key not valid|blocked|referer|PERMISSION_DENIED/i.test(m))txt='La clave de la app no tiene permiso para usar AI Logic (revise las restricciones de la clave en Google Cloud).';
@@ -1352,7 +1413,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 11:40';
+const BUILD='2026-11-24 12:10';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1831,6 +1892,7 @@ const CH={
   impFoto(el){const f=el.files[0];el.value='';if(f)impFotoLeer(f)},
   impFotoDirecto(el){const f=el.files[0];el.value='';if(!f)return;S.modal={t:'impLista',wide:true,rows:[],txt:''};impFotoLeer(f)},
   fotoAnalizar(){impFotoAnalizar(false)},
+  usoRefrescar(){S.uso=null;usoCargar()},
   fotoAnteriorDirecto(){S.modal={t:'impLista',wide:true,rows:[],txt:''};ACT.fotoAnterior()},
   fotoAnalizarTodo(){impFotoAnalizar(true)},
   fotoQuitarArea(){S.modal.rect=null;render()},
@@ -1949,7 +2011,7 @@ function rebuildMat(){S.materiales=[...Object.values(chunks).flatMap(it=>Object.
 function subscribeFB(){const db=FB.raw;const t=setTimeout(()=>{S.stale=true;render()},10000);
   const done=k=>{S.loaded[k]=1;if(Object.keys(S.loaded).length>=6){clearTimeout(t);S.stale=false}};
   const fail=k=>e=>{console.warn(k,e);done(k);if(e&&e.code==='permission-denied')toast('Sin permiso para leer '+k,'bad');afterData()};
-  const col=(name,key,map)=>subs.push(db.collection(name).onSnapshot(sn=>{const l=sn.docs.map(d=>({...d.data(),id:d.id}));if(map)map(l);else S[key]=l;if(!sn.metadata.fromCache)done(key);afterData()},fail(key)));
+  const col=(name,key,map)=>subs.push(db.collection(name).onSnapshot(sn=>{RAW[name]=sn;const l=sn.docs.map(d=>({...d.data(),id:d.id}));if(map)map(l);else S[key]=l;if(!sn.metadata.fromCache)done(key);afterData()},fail(key)));
   col('catalogo','cat',l=>{chunks={};l.forEach(d=>chunks[d.id]=d.items||{});rebuildMat()});
   col('materiales','refs',l=>{refDocs=l;rebuildMat()});
   col('embarcaciones','embarcaciones');col('empresas','empresas');col('plantillasSol','plantSol');col('notificaciones','notifs');col('mejoras','mejoras');
@@ -1995,12 +2057,12 @@ async function onAuth(u){if(S.bootstrapping)return;stopSubs();resetData();
   try{const sn=await FB.raw.doc('cuentas/'+un).get();c=sn.exists?sn.data():null}catch(e){console.warn(e)}
   if(!c||c.activo===false){S.loginErr=c?'Este usuario está desactivado. Consulte al administrador.':'Su usuario no está habilitado en la app. Consulte al administrador.';await FB.auth.signOut();return}
   S.uid=u.uid;S.cuenta=un;S.me={...c,id:un};S.novChecked=false;S.owner=c.rol==='admin';S.view='inicio';S.loginErr='';
-  FB.raw.doc('cuentas/'+un).update({ultimoIngreso:nowISO()}).catch(()=>{});
+  FB.raw.doc('cuentas/'+un).update({ultimoIngreso:nowISO()}).catch(()=>{});usoInc('aperturas');
   subscribe();S.boot='ok';render()}
 
 function syncDot(){const st=S.offline?['#e5534b','Sin conexión']:(S.lento||S.pend)?['#e9a23b',S.lento?'Cambios sin enviar':'Guardando…']:['#57c27a','En línea'];
   return `<span title="${st[1]}${S.ultSync?' · último guardado '+S.ultSync.toLocaleTimeString('es-PE'):''}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;opacity:.95"><i style="width:9px;height:9px;border-radius:50%;background:${st[0]};box-shadow:0 0 0 3px rgba(255,255,255,.15)"></i><span class="nm">${st[1]}</span></span>`}
-['fotoAnalizar','fotoAnteriorDirecto','fotoAnalizarTodo','fotoQuitarArea','fotoOtraArea','fotoAnterior','fotoGirar'].forEach(k=>{ACT[k]=CH[k]});
+['usoRefrescar','fotoAnalizar','fotoAnteriorDirecto','fotoAnalizarTodo','fotoQuitarArea','fotoOtraArea','fotoAnterior','fotoGirar'].forEach(k=>{ACT[k]=CH[k]});
 const ACT0={...ACT};
 Object.assign(ACT,{
   async logout(){if(!S.fb)return ACT0.logout();if(S.dirty&&S.draft&&editable(S.draft)&&tieneContenido(S.draft))saveDraft(null,true).catch(()=>{});

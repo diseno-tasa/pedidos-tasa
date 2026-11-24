@@ -65,6 +65,11 @@ service cloud.firestore {
       allow read: if active();
       allow write: if perm('validar');
     }
+    // Contadores de uso (aperturas de la app y consultas a la IA). Solo el administrador los ve.
+    match /uso/{mes} {
+      allow read: if isAdmin();
+      allow create, update: if active();
+    }
     match /empresas/{id} {
       allow read: if active();
       allow write: if perm('usuarios') || perm('validar');
