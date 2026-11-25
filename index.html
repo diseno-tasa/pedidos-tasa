@@ -1004,10 +1004,33 @@ function gUnidades(){const L=S.umEd||(S.umEd=clone(umsInfo()));
 function filasLista(rows){return rows.map(r=>({codigo:String(cell(r.codigo||r.codigosap||r.material||r.cod||'')).trim(),desc:String(cell(r.textobrevedematerial||r.descripcion||r.textobreve||r.material_descripcion||r.desc||'')).trim(),
   um:umNorm(cell(r.unmedidadeentrada||r.um||r.unidad||r.unidaddemedida||'')),cantidad:String(cell(r.cantidad||r.cant||r.qty||'')).replace(',','.').trim(),obs:String(cell(r.observaciones||r.obs||r.observacion||r.medidas||'')).trim()}))
   .filter(r=>r.codigo||r.desc)}
-function parsePegado(txt){const lines=String(txt||'').split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c.some(x=>x.trim()));if(!lines.length)return [];
-  const h=lines[0].map(norm);const conCab=h.some(x=>/cod|desc|cant|texto|unid|obs/.test(x));
-  if(conCab)return filasLista(lines.slice(1).map(c=>{const o={};h.forEach((k,i)=>o[k]=c[i]||'');return o}));
-  return filasLista(lines.map(c=>({codigo:c[0]||'',descripcion:c[1]||'',cantidad:c[2]||'',observaciones:c[3]||'',um:c[4]||''})))}
+function parsePegado(txt){const lines=String(txt||'').split(/\r?\n/).map(l=>l.split('\t'));return filasDesdeTabla(lines)}
+// Reconoce el tipo de columna por su encabezado (acepta variantes: "Cant. solicitada", "Código SAP", "Unid.", etc.)
+function colTipo(h){h=norm(h);if(!h)return '';
+  if(/^(item|it|n|no|nro|num|numero|pos|posicion|correlativo)$/.test(h))return 'item';
+  if(/desc|texto|denomin|detalle|articulo|^materiales$|nombre/.test(h))return 'desc';
+  if(/cod|sap|^nmat|numerodematerial|^material$/.test(h))return 'codigo';
+  if(/cant|qty|requer|solicit|^pedido$/.test(h))return 'cantidad';
+  if(/^(um|ump|umb|und|unds|unid|unidad|unidades|u)$/.test(h)||/^unid|^unmedida|unidaddemedida|^medida$/.test(h))return 'um';
+  if(/obs|coment|nota|medidas|dimens|espec/.test(h))return 'obs';return ''}
+const _esNum=v=>/^\d+([.,]\d+)?$/.test(String(v).trim());
+function filasDesdeTabla(M){M=(M||[]).map(r=>(r||[]).map(c=>c instanceof Date?'':String(c??'').trim())).filter(r=>r.some(Boolean));if(!M.length)return [];
+  // ¿hay una fila de encabezados entre las primeras 15?
+  let hi=-1,map=null,best=0;M.slice(0,15).forEach((r,i)=>{const t=r.map(colTipo);const set=new Set(t.filter(x=>x&&x!=='item'));
+    const pts=set.size+(set.has('cantidad')?1:0)+(set.has('desc')||set.has('codigo')?1:0);if(set.size>=2&&pts>best){best=pts;hi=i;map=t}});
+  const out=[];
+  if(hi>=0){M.slice(hi+1).forEach(r=>{const o={codigo:'',desc:'',cantidad:'',um:'',obs:''};map.forEach((t,i)=>{const v=r[i]||'';if(!t||t==='item'||!v)return;
+      if(t==='obs'||t==='desc')o[t]=o[t]?o[t]+' '+v:v;else if(!o[t])o[t]=v});out.push(o)})}
+  else M.forEach(r=>{// sin encabezados: se deduce cada columna por su contenido
+    const o={codigo:'',desc:'',cantidad:'',um:'',obs:''};const usado=new Set();const ums=umsList();
+    const ic=r.findIndex(v=>/^\d{6,10}$/.test(v));if(ic>=0){o.codigo=r[ic];usado.add(ic)}
+    let nums=r.map((v,i)=>i).filter(i=>!usado.has(i)&&_esNum(r[i]));if(nums.length>1&&nums[0]===0&&/^\d{1,3}$/.test(r[0]))nums=nums.slice(1);
+    if(nums.length){o.cantidad=r[nums[0]];usado.add(nums[0])}
+    const iu=r.findIndex((v,i)=>!usado.has(i)&&v.length<=6&&ums.includes(umNorm(v)));if(iu>=0){o.um=r[iu];usado.add(iu)}
+    const txt=r.map((v,i)=>i).filter(i=>!usado.has(i)&&r[i]&&!(i===0&&/^\d{1,3}$/.test(r[0])));
+    if(txt.length){const id=txt.reduce((a,i)=>r[i].length>r[a].length?i:a,txt[0]);o.desc=r[id];o.obs=txt.filter(i=>i!==id).map(i=>r[i]).join(' ')}
+    out.push(o)});
+  return out.map(o=>({codigo:o.codigo.replace(/\.0+$/,''),desc:o.desc,um:umNorm(o.um),cantidad:String(o.cantidad).replace(',','.').trim(),obs:o.obs})).filter(r=>r.codigo||r.desc)}
 function emparejar(f){let m=f.codigo&&matBy(f.codigo),tipo='codigo';
   if(!m&&f.desc){const nd=norm(f.desc);m=S.materiales.find(x=>!x.ref&&norm(x.desc)===nd);tipo='desc';
     if(!m){const r=buscarMat(f.desc.split(/\s+/).slice(0,4).join(' '),{max:2});if(r.total===1){m=r.list[0];tipo='sug'}}}
@@ -1030,10 +1053,10 @@ function mImpLista(M){const R=M.rows||[];const n=R.filter(r=>r.usar).length,nref
   ${R.some(r=>r.foto)?'<div class="warn" style="margin-top:12px">📷 <b>Lista leída de una foto:</b> compare cada línea con la foto, corrija el material si hace falta y marque ✔ las que estén correctas. <b>Solo se agregan las líneas comprobadas.</b></div>':''}
   ${R.some(r=>r.ok)?`<div class="row" style="margin-top:10px"><button class="btn s p" data-act="impTodas">✔ Aceptar todas${R.some(r=>r.foto)?' (ya las comparé con la foto)':''}</button>${n?'<button class="btn s" data-act="impNinguna">Desmarcar todas</button>':''}<span class="small muted">${n} de ${R.filter(r=>r.ok).length} marcadas</span></div>`:''}
   ${R.length?`<div class="scroll" style="margin-top:8px;max-height:46vh;overflow:auto"><table class="rs"><thead><tr><th>${R.some(r=>r.foto)?'✔':''}</th><th>${R.some(r=>r.foto)?'En la foto':'Archivo'}</th><th>Se agregará como</th><th>Cant.</th><th>Avisos</th></tr></thead><tbody>${R.map((r,i)=>`<tr>
-   <td data-l="Usar"><input type="checkbox" style="width:auto" data-ch="impUsar" data-i="${i}" ${r.usar?'checked':''} ${r.ok?'':'disabled'}></td>
+   <td data-l="Usar"><input type="checkbox" style="width:auto" data-ch="impUsar" data-i="${i}" ${r.usar?'checked':''} ${r.ok?'':'disabled title="Corrija la cantidad para poder marcarla"'}></td>
    <td data-l="${r.foto?'En la foto':'Archivo'}" class="small">${r.foto?`📷 ${esc(r.texto||r.fotoCant)} ${confChip(r.m?r.confianza:'baja')}${(r.alts||[]).length?`<div style="margin-top:4px"><select data-ch="impAlt" data-i="${i}" style="min-width:200px"><option value="">— Ninguno: agregar como referencial —</option>${r.alts.map(c=>{const m=matBy(c);return m?`<option value="${esc(c)}" ${r.m&&String(r.m.codigo)===String(c)?'selected':''}>${esc(c)} · ${esc(m.desc)} (${esc(m.um)})</option>`:''}).join('')}</select></div>`:''}`:`<span class="mono">${esc(r.codigo||'—')}</span> ${esc(r.desc)}${r.um?` <span class="muted">(${esc(r.um)})</span>`:''}`}</td>
    <td data-l="Se agregará como" class="small">${r.m?`${r.tipo==='codigo'?'✅':r.tipo==='desc'?'✅':'≈'} <span class="mono">${esc(r.m.codigo)}</span> ${esc(r.m.desc)} <b>${esc(r.m.um)}</b>${r.tipo==='sug'?' <span class="chip ref">sugerido</span> <button class="btn s" data-act="impComoRef" data-i="${i}">No es este → referencial</button>':''}`:`<span class="chip ref">REFERENCIAL</span> ${esc(r.desc||r.codigo)}`}</td>
-   <td data-l="Cant." class="mono">${esc(r.cantidad)}</td><td data-l="Avisos" class="small" style="color:var(--warn)">${esc(r.avisos.join(' · '))}</td></tr>`).join('')}</tbody></table></div>
+   <td data-l="Cant."><input type="text" inputmode="decimal" data-ch="impCant" data-i="${i}" value="${esc(r.cantidad)}" style="width:80px${num(r.cantidad)>0?'':';border-color:var(--bad)'}" title="Puede corregir la cantidad"></td><td data-l="Avisos" class="small" style="color:var(--warn)">${esc(r.avisos.join(' · '))}</td></tr>`).join('')}</tbody></table></div>
    <div class="small" style="margin-top:8px"><b>${n}</b> material(es) a agregar${nref?` · <b>${nref}</b> como referencial(es)`:''}.</div>`:''}
   <div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn p" data-act="impListaOK" ${n?'':'disabled'}>Agregar ${n} material(es)${R.some(r=>r.foto)?' comprobado(s)':''}</button></div>`}
 
@@ -1416,7 +1439,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-24 16:45';
+const BUILD='2026-11-25 09:30';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1579,6 +1602,8 @@ function openCalc(m,i){const c=m.calc;const vals={};c.inputs.forEach(k=>vals[k]=
 async function resizeImg(file){const url=URL.createObjectURL(file);const img=await new Promise((r,j)=>{const im=new Image();im.onload=()=>r(im);im.onerror=j;im.src=url});
   const k=Math.min(1,640/Math.max(img.width,img.height));const cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(url);return cv.toDataURL('image/jpeg',0.6)}
 function pickFile(accept){return new Promise(r=>{const i=document.createElement('input');i.type='file';i.accept=accept;i.onchange=()=>r(i.files[0]);i.click()})}
+async function readXLMatriz(file){if(!window.XLSX)throw new Error('No se pudo cargar el lector de Excel');const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});const ws=wb.Sheets['Pedido']||wb.Sheets[wb.SheetNames[0]];
+  return filasDesdeTabla(XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false}))}
 async function readXL(file){if(!window.XLSX)throw new Error('No se pudo cargar el lector de Excel');const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets['Pedido']||wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json(ws,{defval:'',raw:true}).map(r=>{const o={};for(const k in r)o[norm(k)]=r[k];return o})}
 const cell=v=>v instanceof Date?v:String(v??'').trim();
@@ -1895,8 +1920,11 @@ function confirmLeave(){return true}
 const CH={
   async mejFoto(el){const f=el.files[0];if(!f)return;try{S.mejN.foto=await resizeImg(f);render()}catch(e){toast('No se pudo leer la imagen','bad')}},
   async mejEstado(el){const m=S.mejoras.find(x=>x.id===el.dataset.id);const b=clone(m);delete b.id;b.estado=el.value;await setDoc('mejoras/'+m.id,b);toast('Estado: '+el.value)},
-  async impListaFile(el){const f=el.files[0];if(!f)return;try{const rows=await readXL(f);const R=filasLista(rows);if(!R.length){toast('No se encontraron columnas Código / Descripción / Cantidad en el archivo.','bad');return}S.modal.rows=R.map(emparejar);render()}catch(e){toast('No se pudo leer el archivo: '+e.message,'bad')}},
+  async impListaFile(el){const f=el.files[0];if(!f)return;try{const R=await readXLMatriz(f);if(!R.length){toast('No se encontraron columnas Código / Descripción / Cantidad en el archivo.','bad');return}S.modal.rows=R.map(emparejar);render()}catch(e){toast('No se pudo leer el archivo: '+e.message,'bad')}},
   impUsar(el){S.modal.rows[+el.dataset.i].usar=el.checked;render()},
+  impCant(el){const r=S.modal.rows[+el.dataset.i];if(!r)return;r.cantidad=String(el.value||'').replace(',','.').trim();const q=num(r.cantidad);
+    r.avisos=(r.avisos||[]).filter(a=>a!=='cantidad no válida');if(!(q>0))r.avisos.unshift('cantidad no válida');
+    const ok=q>0&&(!!r.m||!!r.desc);if(ok&&!r.ok&&!r.foto)r.usar=true;if(!ok)r.usar=false;r.ok=ok;render()},
   impFoto(el){const f=el.files[0];el.value='';if(f)impFotoLeer(f)},
   impFotoDirecto(el){const f=el.files[0];el.value='';if(!f)return;S.modal={t:'impLista',wide:true,rows:[],txt:''};impFotoLeer(f)},
   fotoAnalizar(){impFotoAnalizar(false)},
