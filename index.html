@@ -296,7 +296,7 @@ const DEF_TPL=[
   {id:'acero_kg',nombre:'Plancha de acero — peso',um:'KG',inputs:['L','A','N'],formula:'N*L*A*(E/1000)*7850',consts:{E:6}},
   {id:'junta_kg',nombre:'Junta/anillo — peso por diámetro',um:'KG',inputs:['D','N'],formula:'N*PI*D*KGM',consts:{KGM:0.05}},
 ];
-const XL_HEAD=['Código','Texto breve de material','Un. medida de entrada','Cantidad','Observaciones','Reserva','Posición','Estado','Proyecto','Sistema','Grafo','Pos.','Empresa','Correo 1','Correo 2','Correo 3','Consideraciones','Fecha solicitud','Fecha de carga','Nombre de actividad','Última Pos.'];
+const XL_HEAD=['Código','Texto breve de material','Un. medida de entrada','Cantidad','Observaciones','Reserva','Posición','Estado','Proyecto','Sistema','Grafo','Pos.','Empresa','Correo 1','Correo 2','Correo 3','Consideraciones','Fecha solicitud','Fecha de carga','Nombre de actividad','Última Pos.','Solicitado por'];
 /* Última Pos. del grafo según el listado de actividades de la embarcación (el Reservatron la usa para ubicar los nodos nuevos) */
 function ultimaPos(h){const e=embBy(h.proyecto);if(!e)return null;const g=String(h.grafo||'').replace(/\D/g,'');
   const s=(e.sistemas||[]).find(x=>g&&String(x.grafo||'').replace(/\D/g,'')===g)||(e.sistemas||[]).find(x=>norm(x.nombre)===norm(h.sistema));
@@ -712,7 +712,7 @@ function vMateriales(){const q=norm(S.matQ);const ed=can('editar_mat');
    <div class="tabs"><button class="${S.matTab==='cat'?'on':''}" data-act="matTab" data-t="cat">Catálogo</button><button class="${S.matTab==='ref'?'on':''}" data-act="matTab" data-t="ref">Referenciales pendientes (${refs.length})</button></div>
    ${S.matTab==='cat'?`<div class="card"><input data-b="matQ" data-rr="1" placeholder="Buscar: código, descripción o comodines (ej. pl*12*  ·  tub* 1/2*)" value="${esc(S.matQ)}" style="margin-bottom:10px">
    ${show.length?`<div class="scroll"><table class="rs"><thead><tr><th>Código</th><th>Descripción</th><th>UM</th><th>Categoría</th><th>Cálculo</th><th></th></tr></thead><tbody>${show.map(m=>`<tr><td data-l="Código" class="mono">${esc(m.codigo)}</td><td data-l="Descripción">${esc(m.desc)}</td><td data-l="UM">${esc(m.um)}</td><td data-l="Categoría">${esc(m.cat||'')}</td><td data-l="Cálculo">${m.calc?`<span class="formula">${esc(m.calc.formula)}</span>`:'<span class="muted">—</span>'}</td><td>${ed?`<button class="btn s" data-act="matModal" data-id="${esc(m.id)}">Editar</button>`:''}</td></tr>`).join('')}</tbody></table></div>${L.length>300?`<div class="muted small">Mostrando 300 de ${L.length}. Refine la búsqueda.</div>`:''}`:'<div class="empty">Sin materiales. '+(ed?'Importe su catálogo desde Excel (columnas Código, Texto breve de material, Un. medida).':'')+'</div>'}</div>`:
-   `<div class="card">${refs.length?`<table class="rs"><thead><tr><th>Foto</th><th>Descripción</th><th>UM</th><th>Especificación</th><th>Solicitado</th><th></th></tr></thead><tbody>${refs.map(m=>`<tr><td data-l="Foto">${m.fotoId?`<button class="btn s" data-act="verFoto" data-id="${esc(m.fotoId)}">📷 Ver</button>`:'—'}</td><td data-l="Descripción"><b>${esc(m.desc)}</b></td><td data-l="UM">${esc(m.um)}</td><td data-l="Especificación">${esc(m.espec||'')}</td><td data-l="Solicitado">${esc(fdt(m.fecha))}</td><td>${ed?`<button class="btn s p" data-act="asignarRefMat" data-id="${esc(m.id)}">Asignar código SAP</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay materiales referenciales pendientes.</div>'}</div>`}`}
+   `<div class="card">${refs.length?`<table class="rs"><thead><tr><th>Foto</th><th>Descripción</th><th>UM</th><th>Especificación</th><th>Solicitado</th><th></th></tr></thead><tbody>${refs.map(m=>`<tr><td data-l="Foto">${m.fotoId?`<button class="btn s" data-act="verFoto" data-id="${esc(m.fotoId)}">📷 Ver</button>`:'—'}</td><td data-l="Descripción"><b>${esc(m.desc)}</b></td><td data-l="UM">${esc(m.um)}</td><td data-l="Especificación">${esc(m.espec||'')}</td><td data-l="Solicitado">${esc(fdt(m.fecha))}</td><td style="white-space:nowrap">${ed?`<button class="btn s d" data-act="descartarRef" data-id="${esc(m.id)}" title="Eliminar este referencial (no corresponde crear el código)">🗑</button> <button class="btn s p" data-act="asignarRefMat" data-id="${esc(m.id)}">Asignar código SAP</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay materiales referenciales pendientes.</div>'}</div>`}`}
 
 /* ---------- Embarcaciones ---------- */
 function vEmb(){const ed=can('editar_emb');const f=S.embF||'';
@@ -1438,7 +1438,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-26 12:50';
+const BUILD='2026-11-27 09:40';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1620,9 +1620,9 @@ function nombreArchivo(s){const h=s.header,d=new Date(s.fechaSolicitud||Date.now
   return `${sanitize(h.proyecto)}-${sanitize(h.sistema)}-${sanitize(String(h.consideraciones||h.nombreActividad||'').slice(0,52))}_${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}.xlsx`}
 const asNum=v=>/^\d+$/.test(String(v??'').trim())?Number(v):(String(v??'').trim()||null);
 function buildXL(s,solo){const h=s.header,e0=empBy(s.empresaId)||{};const C=correosSol(s);const e={nombre:e0.nombre,correo1:C.c1.join(';'),correo2:C.c2.join(';'),correo3:C.c3.join(';')};const rows=[XL_HEAD];
-  (solo||s.items||[]).forEach(it=>rows.push([asNum(it.codigo),it.desc,it.um,fmt(it.cantidad),it.obs||null,asNum(it.reserva),asNum(it.posicion),(EST_SAP.includes(it.estado||'')?null:it.estado)||null,h.proyecto,h.sistema,asNum(h.grafo),asNum(h.pos),e.nombre||h.empresaTxt||'',e.correo1||'',e.correo2||'',e.correo3||'',h.consideraciones||'',new Date(s.fechaSolicitud),s.fechaCarga||dmy(new Date()),h.nombreActividad||'',ultimaPos(h)]));
+  (solo||s.items||[]).forEach(it=>rows.push([asNum(it.codigo),it.desc,it.um,fmt(it.cantidad),it.obs||null,asNum(it.reserva),asNum(it.posicion),(EST_SAP.includes(it.estado||'')?null:it.estado)||null,h.proyecto,h.sistema,asNum(h.grafo),asNum(h.pos),e.nombre||h.empresaTxt||'',e.correo1||'',e.correo2||'',e.correo3||'',h.consideraciones||'',new Date(s.fechaSolicitud),s.fechaCarga||dmy(new Date()),h.nombreActividad||'',ultimaPos(h),String(s.createdBy||'').toUpperCase()]));
   const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:true});for(let r=2;r<=rows.length;r++){const c=ws['R'+r];if(c)c.z='yyyy-mm-dd hh:mm:ss'}
-  ws['!cols']=XL_HEAD.map((x,i)=>({wch:[10,36,8,9,14,11,8,8,16,14,10,5,12,26,28,28,40,19,11,34,9][i]}));
+  ws['!cols']=XL_HEAD.map((x,i)=>({wch:[10,36,8,9,14,11,8,8,16,14,10,5,12,26,28,28,40,19,11,34,9,14][i]}));
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Pedido');return XLSX.write(wb,{type:'array',bookType:'xlsx'})}
 async function saveFile(name,data){if(S.dl){try{await S.dl.save({filename:name,data});return true}catch(e){if(e&&e.code==='declined')toast('Descarga cancelada');else toast('No se pudo descargar: '+(e.message||e.code),'bad');return false}}
   if(S.demo||S.fb){const b=new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();return true}
@@ -1651,6 +1651,10 @@ const ACT={
   open(el){openSol(el.dataset.id)},
   importXL(){importarSolicitud()},
   async guardar(){if(S.draft&&S.draft.estado==='Enviada'&&!can('validar')&&!S.isNew){await saveDraft('Corrigió la solicitud enviada (aún sin revisar)');toast('Cambios guardados');return}const imp=S.isNew&&S.draft.origen==='excel'&&S.draft.estado==='Enviada'&&!S.draft.alertaId;await saveDraft(S.isNew?'Guardó la solicitud':'Editó la solicitud');toast('Guardado');if(imp)await crearAlerta(S.draft)},
+  descartarRef(el){const m=S.materiales.find(x=>x.id===el.dataset.id);if(!m)return;
+    const usos=(S.solicitudes||[]).filter(s=>!['Anulada'].includes(s.estado)&&(s.items||[]).some(i=>i.refId===m.id&&!i.codigo));
+    S.modal={t:'confirm',title:'Eliminar referencial',msg:`¿Eliminar "${m.desc}" de los códigos por crear?`+(usos.length?` Aún figura sin código en ${usos.length} solicitud(es) (${usos.slice(0,4).map(s=>s.header&&s.header.proyecto||s.id).join(', ')}${usos.length>4?'…':''}); allí quedará como texto, sin pedido de código.`:''),ok:'Eliminar',danger:true,
+      fn:async()=>{await delDoc('materiales/'+m.id);toast('Referencial eliminado.');render()}};render()},
   delItem(el){S.draft.items.splice(+el.dataset.i,1);S.dirty=true;render()},
   delItemQ(el){const i=+el.dataset.i,it=S.draft.items[i];if(!it)return;S.modal={t:'confirm',title:'Eliminar material',msg:`¿Quitar de la solicitud el material ${i+1}: ${it.codigo||'REFERENCIAL'} — ${it.desc} (${it.cantidad} ${it.um})?`,ok:'Eliminar',danger:true,
     fn:()=>{const x=S.draft.items[i];if(x!==it)return;S.draft.items.splice(i,1);hist(S.draft,`Eliminó el material ${it.codigo||'referencial'} ${it.desc} (${it.cantidad} ${it.um})`);S.dirty=true;autoSaveSoon();toast('Material eliminado.');render()}};render()},

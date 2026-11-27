@@ -265,8 +265,8 @@ DEF_DISENO = ['aidrogo@tasa.com.pe', 'onavarro@tasa.com.pe', 'hcuellar@tasa.com.
 CARGO_ALERTA = 'Encargado de diseño'
 XL_HEAD = ['Código', 'Texto breve de material', 'Un. medida de entrada', 'Cantidad', 'Observaciones', 'Reserva', 'Posición', 'Estado',
            'Proyecto', 'Sistema', 'Grafo', 'Pos.', 'Empresa', 'Correo 1', 'Correo 2', 'Correo 3', 'Consideraciones', 'Fecha solicitud',
-           'Fecha de carga', 'Nombre de actividad', 'Última Pos.']
-XL_WCH = [10, 36, 8, 9, 14, 11, 8, 8, 16, 14, 10, 5, 12, 26, 28, 28, 40, 19, 11, 34, 9]
+           'Fecha de carga', 'Nombre de actividad', 'Última Pos.', 'Solicitado por']
+XL_WCH = [10, 36, 8, 9, 14, 11, 8, 8, 16, 14, 10, 5, 12, 26, 28, 28, 40, 19, 11, 34, 9, 14]
 
 def tiene_res(it): return bool(it.get('reserva')) or bool(re.match(r'^reserv', str(it.get('estado') or ''), re.I))
 def is_bloq(it): return it.get('estado') in ('Bloqueado', 'Desbloqueo solicitado', 'Desbloqueado') and not it.get('reserva')
@@ -359,7 +359,7 @@ def construir_excel(s, D, tz, destino):
                    h.get('proyecto'), h.get('sistema'), as_num(h.get('grafo')), as_num(h.get('pos')),
                    e.get('nombre') or h.get('empresaTxt') or '', ';'.join(c1), ';'.join(c2), ';'.join(c3),
                    h.get('consideraciones') or '', fsol, s.get('fechaCarga') or dmy(datetime.now(tz)), h.get('nombreActividad') or '',
-                   D.ultima_pos(h)])
+                   D.ultima_pos(h), str(s.get('createdBy') or '').upper()])
     for r in range(2, ws.max_row + 1):
         ws.cell(r, 18).number_format = 'yyyy-mm-dd hh:mm:ss'
     for i, w in enumerate(XL_WCH, 1):
