@@ -355,7 +355,7 @@ def construir_excel(s, D, tz, destino):
     for it in s.get('items') or []:
         est = it.get('estado') or ''
         ws.append([as_num(it.get('codigo')), it.get('desc'), it.get('um'), fmt(it.get('cantidad')), it.get('obs') or None,
-                   as_num(it.get('reserva')), as_num(it.get('posicion')), None if est in EST_SAP else est,
+                   as_num(it.get('reserva')), as_num(it.get('posicion')), ('Sin código' if not str(it.get('codigo') or '').strip() else (None if est in EST_SAP else est)),
                    h.get('proyecto'), h.get('sistema'), as_num(h.get('grafo')), as_num(h.get('pos')),
                    e.get('nombre') or h.get('empresaTxt') or '', ';'.join(c1), ';'.join(c2), ';'.join(c3),
                    h.get('consideraciones') or '', fsol, s.get('fechaCarga') or dmy(datetime.now(tz)), h.get('nombreActividad') or '',

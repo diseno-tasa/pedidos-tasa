@@ -1473,7 +1473,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-27 10:15';
+const BUILD='2026-11-27 10:40';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1655,7 +1655,7 @@ function nombreArchivo(s){const h=s.header,d=new Date(s.fechaSolicitud||Date.now
   return `${sanitize(h.proyecto)}-${sanitize(h.sistema)}-${sanitize(String(h.consideraciones||h.nombreActividad||'').slice(0,52))}_${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}.xlsx`}
 const asNum=v=>/^\d+$/.test(String(v??'').trim())?Number(v):(String(v??'').trim()||null);
 function buildXL(s,solo){const h=s.header,e0=empBy(s.empresaId)||{};const C=correosSol(s);const e={nombre:e0.nombre,correo1:C.c1.join(';'),correo2:C.c2.join(';'),correo3:C.c3.join(';')};const rows=[XL_HEAD];
-  (solo||s.items||[]).forEach(it=>rows.push([asNum(it.codigo),it.desc,it.um,fmt(it.cantidad),it.obs||null,asNum(it.reserva),asNum(it.posicion),(EST_SAP.includes(it.estado||'')?null:it.estado)||null,h.proyecto,h.sistema,asNum(h.grafo),asNum(h.pos),e.nombre||h.empresaTxt||'',e.correo1||'',e.correo2||'',e.correo3||'',h.consideraciones||'',new Date(s.fechaSolicitud),s.fechaCarga||dmy(new Date()),h.nombreActividad||'',ultimaPos(h),String(s.createdBy||'').toUpperCase()]));
+  (solo||s.items||[]).forEach(it=>rows.push([asNum(it.codigo),it.desc,it.um,fmt(it.cantidad),it.obs||null,asNum(it.reserva),asNum(it.posicion),(!String(it.codigo||'').trim()?'Sin código':(EST_SAP.includes(it.estado||'')?null:it.estado)||null),h.proyecto,h.sistema,asNum(h.grafo),asNum(h.pos),e.nombre||h.empresaTxt||'',e.correo1||'',e.correo2||'',e.correo3||'',h.consideraciones||'',new Date(s.fechaSolicitud),s.fechaCarga||dmy(new Date()),h.nombreActividad||'',ultimaPos(h),String(s.createdBy||'').toUpperCase()]));
   const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:true});for(let r=2;r<=rows.length;r++){const c=ws['R'+r];if(c)c.z='yyyy-mm-dd hh:mm:ss'}
   ws['!cols']=XL_HEAD.map((x,i)=>({wch:[10,36,8,9,14,11,8,8,16,14,10,5,12,26,28,28,40,19,11,34,9,14][i]}));
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Pedido');return XLSX.write(wb,{type:'array',bookType:'xlsx'})}
