@@ -850,6 +850,23 @@ def diagnostico(cfg):
         print(f'\n• [{s.get("estado")}] {h.get("proyecto")} · sistema "{h.get("sistema")}" · grafo {h.get("grafo") or "—"} · Pos {h.get("pos") or "—"} · {len(s.get("items") or [])} materiales')
         print(f'    se automatiza: {"SÍ" if cfg.automatiza(h.get("sistema")) else "NO"} · carpeta proyecto: {pdir or "NO ENCONTRADA"}'
               f' · carpeta destino: {sdir or "NO ENCONTRADA (" + cfg.carpeta_de(h.get("sistema")) + ")"}')
+        if sdir:
+            sol_dir = K.subdir(sdir, cfg.sub_sol); nom = nombre_archivo(s, cfg.tz)
+            print(f'    Excel esperado: {nom} → {"ESTÁ en Solicitados" if os.path.exists(os.path.join(sol_dir, nom)) else ("ya en Reservados" if os.path.exists(os.path.join(K.subdir(sdir, cfg.sub_res), nom)) else "NO está en Solicitados ni en Reservados")}')
+    print('\n=== Excel que hay ahora en las carpetas Solicitados ===')
+    for sdir in K.carpetas_sistema():
+        for p in sorted(glob.glob(os.path.join(K.subdir(sdir, cfg.sub_sol), '*.xls*'))):
+            if not os.path.basename(p).startswith('~$'): print(f'  {p}')
+    est = os.path.join(BASE, 'estado_bot.json')
+    print(f'\nArchivo de estado del bot: {est} [{"existe" if os.path.exists(est) else "NO EXISTE"}]')
+    try:
+        with open(est, encoding='utf-8') as f: st = json.load(f)
+        for p, t in (st.get('exportados') or {}).items():
+            print(f'  anotado como exportado: {p} ({t}) {"" if os.path.exists(p) else "[ya no existe]"}')
+        for d, t in (st.get('intentos') or {}).items():
+            print(f'  último intento en {d}: {t}')
+    except Exception as e:
+        print(f'  (no se pudo leer: {e})')
     print()
 
 def main():
