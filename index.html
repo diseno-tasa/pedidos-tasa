@@ -630,6 +630,7 @@ function vDetalle(){const s=S.draft;if(!s)return '<div class="empty">Seleccione 
     <label style="margin-top:10px">Periodo</label><select data-b="draft.periodo" data-rr="1" ${can('usuarios')&&!cerrada(s)?'':'disabled'} title="${can('usuarios')?'':'Solo el administrador asigna el periodo'}"><option value="">${esc(periodoEmb(h.proyecto)?'De la embarcación ('+periodoEmb(h.proyecto)+')':(periodoDe(s.fechaSolicitud)?'Por fecha ('+periodoDe(s.fechaSolicitud)+')':'Sin periodo'))}</option>${periodosList().map(p=>`<option ${s.periodo===p.nombre?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select></div>
    <div><label>Consideraciones</label><textarea data-b="draft.header.consideraciones" rows="2" ${dis}>${esc(h.consideraciones)}</textarea></div></div>
 </div>
+  ${s.recargaDe?`<div class="card" style="border-left:5px solid #2f6fd6"><div class="row"><span>🔄 Solicitud generada para cargar código(s) <b>desbloqueado(s)</b> de una solicitud anterior${s.recargaDe.fechaOriginal?' (del '+esc(fdt(s.recargaDe.fechaOriginal))+')':''}. Al quedar reservada, la reserva vuelve a la original.</span><div style="flex:1"></div><button class="btn s" data-act="open" data-id="${esc(s.recargaDe.sol)}">Ver solicitud original</button></div></div>`:''}
   <div class="card"><div class="row" style="margin-bottom:10px"><h2 style="margin:0">Materiales (${(s.items||[]).length})</h2><div style="flex:1"></div>
    ${(s.items||[]).some(i=>i.reserva)?`<button class="btn" data-act="copiarRes" title="Copia solo Reserva y Posición, una fila por material, para pegar en Excel">📋 Copiar reserva / pos</button><button class="btn" data-act="xlRes">⬇ Excel</button>`:''}
    ${reservaEd&&(s.items||[]).length?'<button class="btn" data-act="reservaModal">Actualizar reserva / pos</button>':''}</div>
@@ -644,7 +645,7 @@ function vDetalle(){const s=S.draft;if(!s)return '<div class="empty">Seleccione 
     <td data-l="Observaciones">${ed?`<input data-b="draft.items.${i}.obs" value="${esc(it.obs)}">`:esc(it.obs)}</td>
     ${verRes?`<td data-l="Reserva">${reservaEd?`<input class="mono" style="width:100px" data-b="draft.items.${i}.reserva" value="${esc(it.reserva)}">`:`<span class="mono">${esc(it.reserva||'—')}</span>`}</td>
     <td data-l="Posición">${reservaEd?`<input class="mono" style="width:60px" data-b="draft.items.${i}.posicion" value="${esc(it.posicion)}">`:`<span class="mono">${esc(it.posicion||'—')}</span>`}${it.bsu&&it.bsu.anterior?`<div class="small muted" style="white-space:nowrap">antes: <s class="mono">${esc(it.bsu.anterior.reserva||'')}/${esc(it.bsu.anterior.posicion||'')}</s></div>`:''}</td>
-    <td data-l="Estado SAP">${reservaEd&&!['Borrador','Observada'].includes(s.estado)?`<select data-ch="estSap" data-i="${i}" style="min-width:120px">${EST_SAP.map(x=>`<option value="${x}" ${(it.estado||'')===x?'selected':''}>${labSap(x)||'—'}</option>`).join('')}</select>${isBloq(it)&&it.bloqueo&&it.bloqueo.desde?`<div class="small muted">${diasDesde(it.bloqueo.desde)} día(s)</div>`:''}`:(chipSap(it.estado)||'<span class="muted">—</span>')}</td>`:''}</tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Agregue materiales con el buscador. Si no lo encuentra, regístrelo como referencial.</div>'}
+    <td data-l="Estado SAP">${reservaEd&&!['Borrador','Observada'].includes(s.estado)?`<select data-ch="estSap" data-i="${i}" style="min-width:120px">${EST_SAP.map(x=>`<option value="${x}" ${(it.estado||'')===x?'selected':''}>${labSap(x)||'—'}</option>`).join('')}</select>${isBloq(it)&&it.bloqueo&&it.bloqueo.desde?`<div class="small muted">${diasDesde(it.bloqueo.desde)} día(s)</div>`:''}`:(chipSap(it.estado)||'<span class="muted">—</span>')+(it.recarga&&!it.reserva?`<div class="small"><a href="#" data-act="open" data-id="${esc(it.recarga.sol)}">🔄 En carga en nueva solicitud</a></div>`:'')}</td>`:''}</tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Agregue materiales con el buscador. Si no lo encuentra, regístrelo como referencial.</div>'}
    ${ed?'<div class="row" id="tour-add" style="margin-top:10px"><button class="btn" data-act="refModal">+ No encuentro el material (referencial)</button><button class="btn" data-act="impLista">⬆ Importar lista (Excel)</button>'+(iaDisponible()?'<label class="btn" style="display:inline-flex;gap:6px;cursor:pointer" title="Foto de una lista escrita a mano o impresa: marque el área de esta actividad y la app la lee">📷 Lista desde foto<input type="file" accept="image/*" data-ch="impFotoDirecto" style="display:none"></label>'+(S.ultimaFoto?'<button class="btn s" data-act="fotoAnteriorDirecto" title="Usar la misma foto para marcar el área de otra actividad">🖼 Foto anterior</button>':''):'')+'</div>':''}</div>
   </div><div>
   <div class="card" id="rev-card">${revHTML(s,ed)}</div>
@@ -952,7 +953,39 @@ const isBloq=it=>['Bloqueado','Desbloqueo solicitado','Desbloqueado'].includes(i
 const sigueBloq=it=>['Bloqueado','Desbloqueo solicitado'].includes(it.estado)&&!it.reserva;
 const diasDesde=t=>t?Math.max(0,Math.floor((Date.now()-new Date(t))/864e5)):0;
 function chipSap(e){if(!e)return '';const c={'Bloqueado':'background:#fbdcd8;color:#7d1a10','Desbloqueo solicitado':'background:#fde7bf;color:#6b4300','Desbloqueado':'background:#d6e4fc;color:#123c8f','Cargado':'background:#d3efe4;color:#0b4d3a','Reservado':'background:#d3efe4;color:#0b4d3a'}[e]||'';return `<span class="chip" style="${c}">${e==='Bloqueado'?'🔒 ':e==='Desbloqueado'?'🔓 ':e==='Reservado'?'✅ ':''}${esc(labSap(e))}</span>`}
-function bloqueosTodos(){const out=[];visibles(false).forEach(s=>{if(s.estado==='Anulada')return;(s.items||[]).forEach((it,i)=>{if(isBloq(it))out.push({s,it,i})})});return out}
+function bloqueosTodos(){const out=[];visibles(false).forEach(s=>{if(s.estado==='Anulada')return;(s.items||[]).forEach((it,i)=>{if(isBloq(it)&&!it.recarga)out.push({s,it,i})})});return out}
+function recargasTodas(){const out=[];visibles(false).forEach(s=>{(s.items||[]).forEach((it,i)=>{if(it.recarga&&!it.reserva)out.push({s,it,i,n:S.solicitudes.find(x=>x.id===it.recarga.sol)})})});return out}
+const CONS_RECARGA='Material pendiente de carga en solicitud anterior debido a bloqueo de código';
+/* Código liberado sin reserva -> nueva solicitud VALIDADA para que el bot la cargue */
+const solById=sid=>(S.draft&&S.draft.id===sid&&!S.isNew)?S.draft:S.solicitudes.find(x=>x.id===sid);
+function ofrecerRecarga(sid,i){const s=solById(sid);if(!s||!can('validar'))return;
+  const cand=(s.items||[]).map((it,k)=>({it,k})).filter(({it,k})=>it.estado==='Desbloqueado'&&!it.reserva&&!it.recarga&&it.codigo);
+  if(!cand.some(x=>x.k===i))return;
+  S.modal={t:'recarga',sid,sel:Object.fromEntries(cand.map(x=>[x.k,true])),cand:cand.map(x=>x.k)};render()}
+function mRecarga(M){const s=solById(M.sid);if(!s)return '<p>Solicitud no encontrada.</p>';const h=s.header||{};
+  return `<h2>🔓 Código desbloqueado · ¿cómo se carga?</h2>
+  <p class="small">Si aún no tiene la reserva, la app puede generar una <b>nueva solicitud ya validada</b> con ${M.cand.length>1?'estos materiales':'este material'} para que el bot la cargue en SAP. Cuando quede reservada, la reserva y posición vuelven solas a esta solicitud.</p>
+  <div class="small muted" style="margin:6px 0">${esc(h.proyecto||'')} · ${esc(h.sistema||'')} · Grafo ${esc(h.grafo||'—')} · Pos ${esc(h.pos||'—')} · ${esc(h.nombreActividad||'')}</div>
+  <div class="scroll" style="max-height:34vh;overflow:auto"><table class="rs"><thead><tr><th></th><th>Código</th><th>Descripción</th><th>Cant.</th></tr></thead><tbody>
+  ${M.cand.map(k=>{const it=s.items[k];return `<tr><td><input type="checkbox" data-ch="recSel" data-i="${k}" ${M.sel[k]?'checked':''}></td><td class="mono">${esc(it.codigo)}</td><td>${esc(it.desc)}</td><td class="mono">${esc(it.cantidad)} ${esc(it.um)}</td></tr>`}).join('')}</tbody></table></div>
+  <p class="small" style="margin-top:8px">Consideraciones de la nueva solicitud: <i>${esc(CONS_RECARGA)}</i></p>
+  <div class="mfoot"><button class="btn" data-act="closeM">La registraré manualmente (reserva y pos.)</button><button class="btn p" data-act="recargaOK" ${Object.values(M.sel).some(Boolean)?'':'disabled'}>Generar solicitud validada</button></div>`}
+async function crearRecarga(M){const s=solById(M.sid);if(!s)return;const idx=M.cand.filter(k=>M.sel[k]);if(!idx.length)return;
+  const id=newId('solicitudes'),now=nowISO(),h=clone(s.header||{});h.consideraciones=CONS_RECARGA;
+  const n={id,estado:'Validada',header:h,empresaId:s.empresaId||'',createdBy:s.createdBy||S.cuenta,fechaSolicitud:now,enviadaEn:now,updatedAt:now,
+    items:idx.map(k=>{const it=s.items[k];return {codigo:String(it.codigo),desc:it.desc,um:it.um,cantidad:it.cantidad,obs:it.obs||'',reserva:'',posicion:''}}),
+    recargaDe:{sol:s.id,items:idx,fechaOriginal:s.fechaSolicitud||''},historial:[]};
+  if(s.periodo)n.periodo=s.periodo;
+  hist(n,`Creada al liberar ${idx.length} código(s) bloqueado(s) de la solicitud del ${fdt(s.fechaSolicitud)}`);hist(n,'Cambió estado a '+labEst('Validada'));
+  await setDoc('solicitudes/'+id,n);
+  const c=clone(s);idx.forEach(k=>{c.items[k].recarga={sol:id,en:now}});hist(c,`Generó la solicitud validada ${id} para cargar ${idx.map(k=>s.items[k].codigo).join(', ')} (códigos desbloqueados)`);c.updatedAt=now;
+  await setDoc('solicitudes/'+s.id,c);toast('Solicitud de carga generada y validada: el bot la cargará.');}
+/* Cuando la solicitud de recarga queda reservada, la reserva vuelve al material original */
+const _recSync=new Set();
+function syncRecargas(){if(!(can('reserva')||can('validar')))return;
+  recargasTodas().forEach(({s,it,i,n})=>{if(!n)return;const r=(n.items||[]).find(x=>String(x.codigo)===String(it.codigo)&&x.reserva&&x.posicion);if(!r)return;
+    const k=s.id+'_'+i+'_'+r.reserva+'_'+r.posicion;if(_recSync.has(k))return;_recSync.add(k);
+    guardarItemSol(s.id,i,x=>{x.reserva=String(r.reserva);x.posicion=String(r.posicion);x.liberadoEn=nowISO();setEstSap(x,'Reservado')},`Código ${it.codigo} cargado en la solicitud de recarga: reserva ${r.reserva} / pos ${r.posicion}`).catch(()=>_recSync.delete(k))})}
 function setEstSap(it,v){it.bloqueo=it.bloqueo||{};const now=nowISO();it.estado=v;
   if(v==='Bloqueado'&&!it.bloqueo.desde)it.bloqueo.desde=now;if(v==='Desbloqueo solicitado'){it.bloqueo.desde=it.bloqueo.desde||now;it.bloqueo.solicitado=now}
   if(v==='Desbloqueado'){it.bloqueo.desde=it.bloqueo.desde||now;it.bloqueo.desbloqueado=now}if(v==='Cargado'||v==='Reservado')it.bloqueo.cargado=now}
@@ -975,6 +1008,8 @@ function vBloqueos(){const ed=can('reserva')||can('validar');const f=S.bqF||'';l
   ${Object.keys(porCod).length?`<div class="card"><h2>Códigos bloqueados (${Object.keys(porCod).length})</h2><div class="row">${Object.entries(porCod).sort((a,b)=>b[1].dias-a[1].dias).map(([k,v])=>`<span class="chip" style="background:${v.dias>3?'#fbdcd8;color:#7d1a10':'#fde7bf;color:#6b4300'};font-weight:600" title="${esc(v.desc)}">🔒 ${esc(k)} · ${v.n} solicitud(es) · ${v.dias} día(s)</span>`).join('')}</div></div>`:''}
   <div class="card"><h2>🔒 Bloqueados en SAP (${L.length})</h2>${ed?'<p class="small muted" style="margin-top:-6px">Marque <b>Solicitud de desbloqueo enviada</b> cuando pida el desbloqueo. Cuando el código ya esté desbloqueado y cargado, escriba su <b>reserva y posición</b> y pulse <b>Cargar</b>: la contrata lo verá al instante.</p>':'<p class="small muted" style="margin-top:-6px">Estos materiales están bloqueados en SAP. Diseño gestiona su desbloqueo; cuando tengan reserva le avisaremos aquí.</p>'}
    ${L.length?`<div class="scroll"><table class="rs"><thead><tr><th>Días</th><th>Código</th><th>Descripción</th><th>Embarcación / Pos.</th>${ed?'<th>Empresa</th>':''}<th>Estado</th><th>Nota / ticket</th>${ed?'<th>Reserva / Pos.</th>':''}<th></th></tr></thead><tbody>${L.map(fila).join('')}</tbody></table></div>`:'<div class="empty">No hay códigos bloqueados pendientes. 👍</div>'}</div>
+  ${(()=>{const RC=recargasTodas();return RC.length?`<div class="card"><h2>🔄 Desbloqueados enviados a carga (${RC.length})</h2><p class="small muted" style="margin-top:-6px">Se generó una nueva solicitud validada para cargarlos; cuando quede reservada, la reserva y posición aparecerán aquí y en la solicitud original.</p>
+   <div class="scroll"><table class="rs"><thead><tr><th>Código</th><th>Descripción</th><th>Embarcación / Pos.</th><th>Nueva solicitud</th><th></th></tr></thead><tbody>${RC.map(({s,it,n})=>`<tr><td data-l="Código" class="mono">${esc(it.codigo)}</td><td data-l="Descripción">${esc(it.desc)}<div class="small muted">${esc(it.cantidad)} ${esc(it.um)}</div></td><td data-l="Embarcación">${esc(s.header.proyecto||'—')} · Pos ${esc(s.header.pos||'—')}</td><td data-l="Nueva solicitud">${n?chip(n.estado):'<span class="muted">—</span>'}<div class="small muted">${esc(fdt(it.recarga.en))}</div></td><td><div class="row" style="flex-wrap:nowrap">${n?`<button class="btn s p" data-act="open" data-id="${esc(n.id)}">Ver nueva</button>`:''}<button class="btn s" data-act="open" data-id="${esc(s.id)}">Original</button></div></td></tr>`).join('')}</tbody></table></div></div>`:''})()}
   <div class="card"><h2>❔ Materiales sin código SAP (${R.length})</h2><p class="small muted" style="margin-top:-6px">${ed?'Asigne el código en Materiales → Referenciales pendientes (o desde la solicitud).':'Materiales que pidió sin código: Diseño les asigna el código y luego la reserva.'}</p>
    ${R.length?`<div class="scroll"><table class="rs"><thead><tr><th>Material</th><th>Embarcación / Pos.</th><th>Estado</th><th></th></tr></thead><tbody>${R.map(({s,it})=>`<tr><td data-l="Material">${esc(it.desc)}<div class="small muted">${esc(it.cantidad)} ${esc(it.um)}</div></td><td data-l="Embarcación">${esc(s.header.proyecto||'—')} · Pos ${esc(s.header.pos||'—')}</td>
     <td data-l="Estado">${it.codigo?`<span class="chip e-Validada">Código asignado: <span class="mono">${esc(it.codigo)}</span></span> <span class="small muted">· esperando reserva</span>`:'<span class="chip ref">Pendiente de código</span>'}</td>
@@ -1438,7 +1473,7 @@ function retrasoCard(){if(!can('validar'))return '';const L=retrasadas();if(!L.l
 function periodoEmb(nombre){const e=embBy(nombre);return (e&&e.periodo)||''}
 
 /* ============ Lectura tolerante de columnas Reserva / Posición / Estado ============ */
-const BUILD='2026-11-27 09:40';
+const BUILD='2026-11-27 10:15';
 function colRes(r){for(const k in r){if(k.includes('reserva')&&!/fecha|estado|tipo|clase/.test(k)&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
 function colPosRes(r){for(const k of ['posicion','posicionreserva','posreserva','posres','itemreserva','posicionres'])if(r[k]!==undefined&&String(r[k]).trim()!=='')return String(cell(r[k])).trim();
   for(const k in r){if((k.startsWith('posicion')||(k.includes('pos')&&k.includes('res')))&&String(r[k]).trim()!=='')return String(cell(r[k])).trim()}return ''}
@@ -1449,7 +1484,7 @@ function modalHTML(){const M=S.modal;let body='';
   if(M.t==='calc')body=mCalc(M);else if(M.t==='ref')body=mRef(M);else if(M.t==='mat')body=mMat(M);else if(M.t==='emb')body=mEmb(M);
   else if(M.t==='reserva')body=mReserva(M);else if(M.t==='obs')body=mObs(M);else if(M.t==='emp')body=mEmp(M);else if(M.t==='user')body=mUser(M);else if(M.t==='plantSave')body=mPlantSave(M);else if(M.t==='plantEdit')body=mPlantEdit(M);else if(M.t==='nuevaDesde')body=mNuevaDesde(M);else if(M.t==='alerta')body=mAlerta(M);else if(M.t==='impLista')body=mImpLista(M);else if(M.t==='novedades')body=mNovedades(M);else if(M.t==='mejResp')body=mMejResp(M);else if(M.t==='avisoRes')body=mAvisoRes(M);else if(M.t==='bsu')body=mBSU(M);else if(M.t==='fotoRes')body=mFotoRes(M);else if(M.t==='avisoBSU')body=mAvisoBSU(M);else if(M.t==='impEmb')body=mImpEmb(M);else if(M.t==='tpl')body=mTpl(M);
   else if(M.t==='foto')body=`<h2>Foto referencial</h2>${M.src?`<img src="${esc(M.src)}" style="max-width:100%;border-radius:8px">`:'Cargando…'}<div class="mfoot"><button class="btn" data-act="closeM">Cerrar</button></div>`;
-  else if(M.t==='asignar')body=mAsignar(M);else if(M.t==='editItem')body=mEditItem(M);else if(M.t==='confirm')body=`<h2>${esc(M.title)}</h2><p>${esc(M.msg)}</p><div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn ${M.danger?'d':'p'}" data-act="confirmOK">${esc(M.ok||'Aceptar')}</button></div>`;
+  else if(M.t==='asignar')body=mAsignar(M);else if(M.t==='editItem')body=mEditItem(M);else if(M.t==='recarga')body=mRecarga(M);else if(M.t==='confirm')body=`<h2>${esc(M.title)}</h2><p>${esc(M.msg)}</p><div class="mfoot"><button class="btn" data-act="closeM">Cancelar</button><button class="btn ${M.danger?'d':'p'}" data-act="confirmOK">${esc(M.ok||'Aceptar')}</button></div>`;
   else if(M.t==='info')body=`<h2>${esc(M.title)}</h2><div>${M.html}</div><div class="mfoot"><button class="btn p" data-act="closeM">Entendido</button></div>`;
   return `<div class="ov" data-act="ovClick"><div class="modal ${M.wide?'w':''}" data-stop="1">${body}</div></div>`}
 function calcOut(calc,vals){const vars={...calc.consts,N:1};const warns=[];
@@ -1655,6 +1690,7 @@ const ACT={
     const usos=(S.solicitudes||[]).filter(s=>!['Anulada'].includes(s.estado)&&(s.items||[]).some(i=>i.refId===m.id&&!i.codigo));
     S.modal={t:'confirm',title:'Eliminar referencial',msg:`¿Eliminar "${m.desc}" de los códigos por crear?`+(usos.length?` Aún figura sin código en ${usos.length} solicitud(es) (${usos.slice(0,4).map(s=>s.header&&s.header.proyecto||s.id).join(', ')}${usos.length>4?'…':''}); allí quedará como texto, sin pedido de código.`:''),ok:'Eliminar',danger:true,
       fn:async()=>{await delDoc('materiales/'+m.id);toast('Referencial eliminado.');render()}};render()},
+  async recargaOK(){const M=S.modal;S.modal=null;render();try{await crearRecarga(M)}catch(e){toast('No se pudo generar la solicitud: '+(e.message||e),'bad')}render()},
   delItem(el){S.draft.items.splice(+el.dataset.i,1);S.dirty=true;render()},
   delItemQ(el){const i=+el.dataset.i,it=S.draft.items[i];if(!it)return;S.modal={t:'confirm',title:'Eliminar material',msg:`¿Quitar de la solicitud el material ${i+1}: ${it.codigo||'REFERENCIAL'} — ${it.desc} (${it.cantidad} ${it.um})?`,ok:'Eliminar',danger:true,
     fn:()=>{const x=S.draft.items[i];if(x!==it)return;S.draft.items.splice(i,1);hist(S.draft,`Eliminó el material ${it.codigo||'referencial'} ${it.desc} (${it.cantidad} ${it.um})`);S.dirty=true;autoSaveSoon();toast('Material eliminado.');render()}};render()},
@@ -1968,9 +2004,10 @@ const CH={
   fotoOk(el){S.modal.lineas[+el.dataset.k].ok=el.checked;render()},
   async estSap(el){const d=S.draft,i=+el.dataset.i,it=d.items[i],v=el.value;setEstSap(it,v);hist(d,`Código ${it.codigo}: ${v||'sin estado SAP'}`);
     if(d.items.every(x=>x.reserva||isBloq(x))&&d.items.some(x=>x.reserva)&&['Validada','Exportada'].includes(d.estado))d.estado='Reservada';
-    await saveDraft(null);marcarCatalogo(it.codigo,v);toast(`${it.codigo}: ${v||'sin estado'}`)},
+    await saveDraft(null);marcarCatalogo(it.codigo,v);toast(`${it.codigo}: ${v||'sin estado'}`);if(v==='Desbloqueado'&&!it.reserva)ofrecerRecarga(d.id,i)},
+  recSel(el){S.modal.sel[+el.dataset.i]=el.checked;render()},
   async estSapL(el){const sid=el.dataset.sid,i=+el.dataset.i,v=el.value;const s0=S.solicitudes.find(x=>x.id===sid);const code=s0?s0.items[i].codigo:'';
-    await guardarItemSol(sid,i,it=>setEstSap(it,v),`Código ${code}: ${v}`);marcarCatalogo(code,v);toast(`${code}: ${v}`)},
+    await guardarItemSol(sid,i,it=>setEstSap(it,v),`Código ${code}: ${v}`);marcarCatalogo(code,v);toast(`${code}: ${v}`);if(v==='Desbloqueado')ofrecerRecarga(sid,i)},
   async notaBloq(el){const sid=el.dataset.sid,i=+el.dataset.i,v=el.value.trim();await guardarItemSol(sid,i,it=>{it.bloqueo=it.bloqueo||{};it.bloqueo.nota=v},null);toast('Nota guardada')},
   viewAs(el){S.viewAs=el.value===S.realRole?null:el.value;S.role=el.value;if(can('ver_todas'))S.viewEmpresa='';else if(!S.viewEmpresa&&S.empresas[0])S.viewEmpresa=S.empresas[0].id;if(!navItems().some(n=>n[0]===S.view)&&S.view!=='detalle')S.view='inicio';render()},
   viewEmp(el){S.viewEmpresa=el.value;render()},
@@ -2094,7 +2131,7 @@ function ensureSolSub(){if(!S.loaded.rolesCfg||!S.loaded.cuentas)return;const c=
 
 /* --- Funciones que eligen entre Firebase y el modo de demostración --- */
 function subscribe(){return S.fb?subscribeFB():subscribeDemo()}
-function afterData(){if(!S.fb)return afterDataDemo();(S.solicitudes||[]).forEach(s=>{if(s.estado==='Atendida')s.estado='Reservada'});
+function afterData(){if(!S.fb)return afterDataDemo();setTimeout(syncRecargas,800);(S.solicitudes||[]).forEach(s=>{if(s.estado==='Atendida')s.estado='Reservada'});
   if(S.cuenta&&S.loaded.cuentas){const c=S.cuentas.find(x=>x.id===S.cuenta);if(!c||c.activo===false){toast('Su usuario fue desactivado o eliminado.');FB.auth.signOut();return}S.owner=c.rol==='admin';S.me=c}
   const c=miCuenta();S.realRole=c?c.rol:null;if(!S.viewAs)S.role=S.realRole;ensureSolSub();
   if(S.draft&&!S.dirty&&!S.isNew){const s=S.solicitudes.find(x=>x.id===S.sel);if(s)S.draft=clone(s)}
