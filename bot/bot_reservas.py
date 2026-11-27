@@ -707,6 +707,8 @@ class Bot:
             sdir = os.path.dirname(os.path.dirname(pth))
             ult = parse_iso(self.st.get('intentos', {}).get(sdir))
             if forzar or (self.c.reintentar > 0 and (not ult or (ahora - ult).total_seconds() > self.c.reintentar * 60)):
+                if sdir not in carp:
+                    log.info(f'Reintento en {os.path.basename(os.path.dirname(sdir))}: queda {os.path.basename(pth)} en Solicitados.')
                 carp.add(sdir)
             elif sdir not in carp and self.c.reintentar > 0:
                 falta = self.c.reintentar - (ahora - ult).total_seconds() / 60
@@ -798,6 +800,8 @@ class Bot:
                 raise RuntimeError(f'No se puede acceder a la carpeta de reservas ({"; ".join(self.c.raices)}). ¿Está conectada la unidad Z:?')
             D = Datos(self.fs)
             exp = self.exportar(D, K) if self.c.exportar else set()
+            if not self.c.ejecutar_exe and (exp or self.st.get('exportados')):
+                log.warning('ejecutar_exe = no en config.ini: hay Excel en Solicitados pero el bot no ejecuta el Reservatron.')
             if self.c.ejecutar_exe:
                 carp = self.carpetas_a_ejecutar(exp, K, forzar_exe, D)
                 self.ejecutar(carp, K)
@@ -857,6 +861,14 @@ def diagnostico(cfg):
     for sdir in K.carpetas_sistema():
         for p in sorted(glob.glob(os.path.join(K.subdir(sdir, cfg.sub_sol), '*.xls*'))):
             if not os.path.basename(p).startswith('~$'): print(f'  {p}')
+    print(f'\n=== Configuración que está usando ({os.path.abspath(cfg.ruta) if hasattr(cfg, "ruta") else "config.ini"}) ===')
+    print(f'  intervalo_minutos = {cfg.intervalo} · reintentar_minutos = {cfg.reintentar} · exportar = {"si" if cfg.exportar else "no"}'
+          f' · ejecutar_exe = {"si" if cfg.ejecutar_exe else "NO  <-- con esto el bot NUNCA ejecuta el Reservatron"}')
+    print(f'  ejecutable = {cfg.exe_patron} · argumentos = {" ".join(cfg.exe_args)}')
+    for sdir in K.carpetas_sistema():
+        sol = [p for p in glob.glob(os.path.join(K.subdir(sdir, cfg.sub_sol), '*.xls*')) if not os.path.basename(p).startswith('~$')]
+        if sol:
+            print(f'  {sdir}: {len(sol)} Excel en Solicitados · ejecutable encontrado: {K.exe(sdir) or "NINGUNO  <-- no puede ejecutar"}')
     est = os.path.join(BASE, 'estado_bot.json')
     print(f'\nArchivo de estado del bot: {est} [{"existe" if os.path.exists(est) else "NO EXISTE"}]')
     try:
