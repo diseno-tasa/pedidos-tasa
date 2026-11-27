@@ -672,10 +672,33 @@ class Bot:
             pass
         return ''
 
-    def carpetas_a_ejecutar(self, exportadas, K, forzar):
+    def pendientes_de_la_app(self, D, K):
+        """Excel en Solicitados de solicitudes que en la app siguen 'Exportada' (sin reserva aún).
+        No depende del archivo de estado: sirve aunque el bot se haya reiniciado o movido de carpeta."""
+        out = []
+        for s in D.sol:
+            if s.get('estado') != 'Exportada': continue
+            h = s.get('header') or {}
+            if not self.c.automatiza(h.get('sistema')): continue
+            try:
+                pdir = K.proyecto(h.get('proyecto'))
+                sdir = K.sistema(pdir, self.c.carpeta_de(h.get('sistema'))) if pdir else None
+                if not sdir: continue
+                p = os.path.join(K.subdir(sdir, self.c.sub_sol), nombre_archivo(s, self.c.tz))
+                if os.path.exists(p): out.append(p)
+            except Exception as e:
+                log.debug(f'pendientes_de_la_app: {e}')
+        return out
+
+    def carpetas_a_ejecutar(self, exportadas, K, forzar, D=None):
         """Carpetas donde correr el Reservatron: las que recibieron Excel en este ciclo y, para reintentar,
         las que aún tienen en Solicitados algún Excel que dejó el bot (nunca por archivos ajenos)."""
         exp = self.st.setdefault('exportados', {})
+        if D is not None:
+            for p in self.pendientes_de_la_app(D, K):
+                if p not in exp:
+                    exp[p] = now_iso()
+                    log.info(f'Pendiente en Solicitados (solicitud Exportada en la app): {p}')
         for pth in list(exp):
             if not os.path.exists(pth): del exp[pth]
         carp = set(exportadas)
@@ -685,6 +708,9 @@ class Bot:
             ult = parse_iso(self.st.get('intentos', {}).get(sdir))
             if forzar or (self.c.reintentar > 0 and (not ult or (ahora - ult).total_seconds() > self.c.reintentar * 60)):
                 carp.add(sdir)
+            elif sdir not in carp and self.c.reintentar > 0:
+                falta = self.c.reintentar - (ahora - ult).total_seconds() / 60
+                log.info(f'Pendiente en {os.path.basename(os.path.dirname(sdir))}: se reintenta en {max(0, falta):.0f} min ({os.path.basename(pth)})')
         return carp
 
     # ── 3. reservados ──
@@ -773,7 +799,7 @@ class Bot:
             D = Datos(self.fs)
             exp = self.exportar(D, K) if self.c.exportar else set()
             if self.c.ejecutar_exe:
-                carp = self.carpetas_a_ejecutar(exp, K, forzar_exe)
+                carp = self.carpetas_a_ejecutar(exp, K, forzar_exe, D)
                 self.ejecutar(carp, K)
                 if carp: D = Datos(self.fs)
             nres = self.leer_reservados(D, K) if self.c.leer_res else 0
